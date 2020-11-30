@@ -1,7 +1,7 @@
 /*
  * Consway's Game of Life.
  *
- * Serial implementation in C from
+ * Serial implementation in C inspired from
  * https://www.geeksforgeeks.org/conways-game-life-python-implementation/
  * 
  * This code should be taken solely as a baseline for the actual parallel

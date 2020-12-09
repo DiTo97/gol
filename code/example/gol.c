@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "gol.h"
+#include "utils.h"
  
 void show(void *u, int w, int h) {
 	int x,y;
@@ -72,43 +74,64 @@ void evolve(void *u, int w, int h) {
 	for (y = 0; y < h; y++) for (x = 0; x < w; x++) univ[y][x] = new[y][x];
 }
  
-void game(int w, int h, int t) {
-	int x,y,z;
-	unsigned univ[h][w];
+void game(struct life_t * life){
+	int x, y;
+	int nrows = life->num_rows;
+	int ncols = life->num_cols;
+
+	unsigned ** grid = life->grid;
+
 	struct timeval start, end;
 	
-	// Initialization
-	for (x = 0; x < w; x++) for (y = 0; y < h; y++) univ[y][x] = rand() < RAND_MAX / 10 ? 1 : 0;
-	
-	if (x > 1000) printbig(univ, w, h,0);
-	
-	for(z = 0; z < t;z++) {
-		if (x <= 1000) show(univ, w, h);
-		else gettimeofday(&start, NULL);
-		
-		evolve(univ, w, h);
+	// controlling if there is an input file and take the 
+	// ncols and nrows, if no file present then we use the
+	// default values
+	FILE * input_file = get_grid_dimension_from_file(life);
 
-		if (x > 1000) {
-			gettimeofday(&end, NULL);
-		    printf("Iteration %d is : %ld ms\n", z,
-		       ((end.tv_sec * 1000000 + end.tv_usec) - 
-		       (start.tv_sec * 1000000 + start.tv_usec))/1000 );
-		}
+	// allocating the memory for the grid
+	malloc_grids(life);
+
+	// filling the grid with DEAD states, for initialization
+	init_default_grid(life);
+
+	if(input_file != NULL){
+		init_from_file(life, input_file);
+	}else{
+		for (x = 0; x < ncols; x++) 
+			for (y = 0; y < nrows; y++){ 
+					life->grid[y][x] = rand_double() < life->init_prob ? ALIVE : DEAD;
+			}
+
+		for(x = 0; x < ncols; x++)
+			for(y = 0; y < nrows; y++){
+				printf("%d", life->grid[y][x]);
+			}
 	}
+	
+	// if (x > 1000) printbig(univ, w, h,0);
+	
+	// for(z = 0; z < t;z++) {
+	// 	if (x <= 1000) show(univ, w, h);
+	// 	else gettimeofday(&start, NULL);
+		
+	// 	evolve(univ, w, h);
 
-	if (x > 1000) printbig(univ, w, h,1);
+	// 	if (x > 1000) {
+	// 		gettimeofday(&end, NULL);
+	// 	    printf("Iteration %d is : %ld ms\n", z,
+	// 	       ((end.tv_sec * 1000000 + end.tv_usec) - 
+	// 	       (start.tv_sec * 1000000 + start.tv_usec))/1000 );
+	// 	}
+	// }
+
+	// if (x > 1000) printbig(univ, w, h,1);
 }
  
-int main(int c, char **v) {
-	int w = 0, h = 0, t = 0;
+int main(int argc, char **argv) {
 
-	if (c > 1) w = atoi(v[1]);
-	if (c > 2) h = atoi(v[2]);
-	if (c > 3) t = atoi(v[3]);
+	struct life_t life;
 
-	if (w <= 0) w = 30;
-	if (h <= 0) h = 30;
-	if (t <= 0) t = 100;
+	parse_args(&life, argc, argv);
 
-	game(w, h, t);
+	game(&life);
 }

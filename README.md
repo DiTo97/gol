@@ -13,3 +13,5 @@ Comparative analysis of possible parallel implementations of Conway's famous [Ga
 - [BWPEP on Conway's Game of Life](http://shodor.org/petascale/materials/UPModules/exercises/Game_of_Life/)
 - [A Performance Analysis of GoL](https://arxiv.org/pdf/1209.4408.pdf)
 - [What is a Dwarf in HPC?](https://www5.in.tum.de/lehre/vorlesungen/hpc/WS15/structured.pdf)
+
+<!-- TODO: Specify the input format -->

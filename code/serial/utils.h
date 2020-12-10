@@ -124,7 +124,7 @@ void malloc_grid(struct life_t *life) {
     int ncols = life->num_cols;
     int nrows = life->num_rows;
 
-    // Add two rows/columns to account for ghost rows.
+    // Add 2 rows/columns to account for ghost rows.
     life->grid      = (unsigned **) malloc(sizeof(unsigned *) * (ncols + 2));
     life->next_grid = (unsigned **) malloc(sizeof(unsigned *) * (ncols + 2));
 

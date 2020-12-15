@@ -1,3 +1,5 @@
+#include <stdbool.h>
+
 // All the data needed by an instance of Game of Life
 struct life_t {
     int vis_interval;     // Display frequency of the grid (if bigger than DEFAULT_MAX_SIZE)
@@ -7,6 +9,8 @@ struct life_t {
 
     double init_prob;     // Probability to mark a cell as ALIVE
                           // when following a random initialization
+
+    unsigned int seed;    // Random seed initializer
     
     unsigned **grid;      // Game grid at the current step
     unsigned **next_grid; // Game grid at the next step
@@ -16,4 +20,8 @@ struct life_t {
 };
 
 /* Function declarations */
-void initialize(struct life_t life);
+void debug(struct life_t life);
+
+void display(struct life_t *life, bool append);
+void initialize(struct life_t *life);
+void get_grid_status(struct life_t *life);

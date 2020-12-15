@@ -23,16 +23,32 @@ static const struct option long_opts[] = {
 };
 
 void show_usage() {
-    printf("\nUsage: gol [options]\n");
-    printf("  -c|--columns number       Number of columns in grid. Default: %d\n", DEFAULT_SIZE_ROWS);
-    printf("  -r|--rows number          Number of rows in grid. Default: %d\n", DEFAULT_SIZE_COLS);
+    printf("\nUsage [1]: gol [options]\n");
+    printf("  -c|--columns number       Number of columns in grid. Default: %d\n", DEFAULT_SIZE_COLS);
+    printf("  -r|--rows number          Number of rows in grid. Default: %d\n", DEFAULT_SIZE_ROWS);
     printf("  -t|--tsteps number        Number of timesteps to run. Default: %d\n", DEFAULT_TIMESTEPS);
     printf("  -s|--seed number          Random seed initializer. Default: %d\n", DEFAULT_SEED);
+    printf("  -p|--init_prob number     Probability for grid initialization. Default: %d\n", DEFAULT_SEED);
     printf("  -i|--input filename       Input file. See README for format. Default: None.\n");
-    printf("  -o|--output filename      Output file. Default: None.\n");
+    printf("  -o|--output filename      Output file. Default: %s.\n", DEFAULT_OUT_FILE);
     printf("  -h|--help                 Show this help page.\n");
-    printf("  -v[N]|--vis_interval[=N]  Display frequency of the grid. Default: %d\n",
-            DEFAULT_VIS_INTERVAL);
+    printf("  -v|--vis_interval         Display frequency of the grid. Default: %d\n\n",DEFAULT_VIS_INTERVAL);
+
+    printf("\nUsage (specify in the following order (at least one argument)) [2]: gol [no options]\n");
+    printf("  1) Number of columns in grid. Default: %d\n", DEFAULT_SIZE_ROWS);
+    printf("  2) Number of rows in grid. Default: %d\n", DEFAULT_SIZE_COLS);
+    printf("  3) Number of timesteps to run. Default: %d\n", DEFAULT_TIMESTEPS);
+    printf("  4) Output file. Default: %s.\n", DEFAULT_OUT_FILE);
+    printf("  5) Display frequency of the grid. Default: %d\n", DEFAULT_VIS_INTERVAL);
+    printf("  6) Random seed initializer. Default: %d\n", DEFAULT_SEED);
+    printf("  7) Probability used for grid initialization. Default: %d\n\n", DEFAULT_INIT_PROB);
+
+    printf("\nUsage (specify in the following order) [3]: gol [no options]\n");
+    printf("  1) Input file. Default: None.\n");
+    printf("  2) Number of timesteps to run. Default: %d\n", DEFAULT_TIMESTEPS);
+    printf("  3) Output file. Default: %s.\n", DEFAULT_OUT_FILE);
+    printf("  4) Display frequency of the grid. Default: %d\n\n", DEFAULT_VIS_INTERVAL);
+            
     printf("\nSee README for more information.\n\n");
 
     exit(EXIT_FAILURE);
@@ -54,72 +70,145 @@ void parse_args(struct life_t *life, int argc, char **argv) {
     int opt_idx = 0;
     int i;
 
-    // TODO: Load all defaults into life
-    load_defaults(life);
-    
-    for (;;) {
-        opt = getopt_long(argc, argv, short_opts, long_opts, &opt_idx);
-
-        if (opt == -1) break;
-
-        switch (opt) {
-            case 'c':
-                life->num_cols = strtol(optarg, (char **) NULL, 10);
-                break;
-            case 'r':
-                life->num_rows = strtol(optarg, (char **) NULL, 10);
-                break;
-            case 't':
-                if (optarg != NULL)
-                    life->timesteps = strtol(optarg, (char **) NULL, 10);
-                break;
-            case 's':
-                if (optarg != NULL) {
-                    int seed = strtol(optarg, (char **) NULL, 10);
-
-                    if (seed == 0) {
-                        life->seed = (unsigned int) time(NULL);
-                    } else {
-                        life->seed = (unsigned int) seed;
-                    }
-                }
-                break;
-            case 'i':
-                life->input_file = optarg;
-                break;
-            case 'o':
-                life->output_file = optarg;
-                break;
-            case 'v':
-                if (optarg != NULL)
-                    life->vis_interval = strtol(optarg, (char **) NULL, 10);
-                break;
-            case 'p':
-                if (optarg != NULL)
-                    life->init_prob = strtod(optarg, (char **) NULL);
-                break;
-            case 'h':
-            case '?':
-                show_usage();
-                break;
-            default:
-                break;
+    unsigned opt_param_count = 0;
+    int limit = argc - 1;
+    for(i = 1; i < argc; i++) {
+        if (strstr(argv[i], "-h")!=NULL) {
+            show_usage();
+            exit(0);
+        }
+        if(strchr(argv[i], '-') != NULL) {
+            opt_param_count++;
         }
     }
+    int diff = limit - opt_param_count;
+    if (diff!=opt_param_count && diff!=limit) {
+        printf("\nExiting the program: malformed command line argument sequence!\n");
+        exit(0);
+    }
 
-    // Read arguments when opts are not specified 
-    if (optind == 1) {
-        if (argc > 1)
-            life->num_rows = strtol(argv[1], (char **) NULL, 10);
+    // TODO: Load all defaults into life
+    load_defaults(life);
+    if (opt_param_count > 0) {
+        printf("\nParsing arguments with options...\n");
+        for (;;) {
+            opt = getopt_long(argc, argv, short_opts, long_opts, &opt_idx);
 
-        if (argc > 2)
-            life->num_cols = strtol(argv[2], (char **) NULL, 10);
+            if (opt == -1) break;
 
-        if (argc > 3)
-            life->timesteps = strtol(argv[3], (char **) NULL, 10);
+            switch (opt) {
+                case 'c':
+                    life->num_cols = strtol(optarg, (char **) NULL, 10);
+                    break;
+                case 'r':
+                    life->num_rows = strtol(optarg, (char **) NULL, 10);
+                    break;
+                case 't':
+                    if (optarg != NULL)
+                        life->timesteps = strtol(optarg, (char **) NULL, 10);
+                    break;
+                case 's':
+                    if (optarg != NULL) {
+                        int seed = strtol(optarg, (char **) NULL, 10);
 
-        if (argc > 4)
-            life->output_file = optarg;
+                        if (seed == 0) {
+                            life->seed = (unsigned int) time(NULL);
+                        } else {
+                            life->seed = (unsigned int) seed;
+                        }
+                    }
+                    break;
+                case 'i':
+                    life->input_file = optarg;
+                    break;
+                case 'o':
+                    life->output_file = optarg;
+                    break;
+                case 'v':
+                    if (optarg != NULL)
+                        life->vis_interval = strtol(optarg, (char **) NULL, 10);
+                    break;
+                case 'p':
+                    if (optarg != NULL)
+                        life->init_prob = strtod(optarg, (char **) NULL);
+                    break;
+                case '?':
+                    show_usage();
+                    exit(0);
+                default:
+                    break;
+            }
+        }
+    }
+    else {       
+        printf("\nParsing arguments without options...\n");
+        /*
+            In case of ordinal arguments, you must specify them either as the sequence
+
+                num_cols, (num_rows, timesteps, output_file, vis_interval, seed, init_prob)
+            
+            when not reading from file. Viceversa, you should specify them as
+            
+                input_file, (timesteps, output_file, vis_interval)
+                
+            Round brackets mean that the included parameters may not be specified directly. In that case, 
+            they will be set to the default values defined in globals.h
+        */
+
+        unsigned parsed_arg;
+        if (limit > 1)
+            parsed_arg = strtol(argv[1], (char **) NULL, 10);
+        if (argc > 1) {
+            if (parsed_arg!=0) {
+                life->num_cols = parsed_arg;
+            }
+            else {
+                life->input_file = argv[1];
+            }
+        }
+
+        if (argc > 2) {
+            if (parsed_arg!=0) 
+                life->num_rows = strtol(argv[2], (char **) NULL, 10);
+            else 
+                life->timesteps = strtol(argv[2], (char **) NULL, 10);
+        }
+
+        if (argc > 3) {
+            if (parsed_arg!=0)
+                life->timesteps = strtol(argv[3], (char **) NULL, 10);
+            else
+                life->output_file = argv[3];
+        }
+
+        if (argc > 4) {
+            if (parsed_arg!=0)
+                life->output_file = argv[4];
+            else    
+                life->vis_interval = strtol(argv[4], (char **) NULL, 10);
+        }
+
+        if (argc > 5) {
+            if (parsed_arg!=0)
+                life->vis_interval = strtol(argv[5], (char **) NULL, 10);
+        }
+
+        if (argc > 6) {
+            if (parsed_arg!=0) {
+                int seed = strtol(argv[6], (char **) NULL, 10);
+                if (seed == 0) {
+                    life->seed = (unsigned int) time(NULL);
+                } else {
+                    life->seed = (unsigned int) seed;
+                }
+            }
+        }
+
+        if (argc > 7) {
+            if (parsed_arg!=0)
+                life->init_prob = strtod(argv[7], (char **) NULL);
+        }
+        
     }
 }
 

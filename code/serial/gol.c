@@ -29,7 +29,9 @@ void debug(struct life_t life) {
     printf("Output file: %s\n", life.output_file == NULL ? "Ciao" : life.output_file);
 }
  
-
+/**
+ * Function that shows the grid on the console
+ */
 void show(struct life_t * life) {
     int x,y;
 
@@ -49,6 +51,9 @@ void show(struct life_t * life) {
     usleep(200000);
 }
 
+/**
+ * Function that saves the grid on file
+ */
 void printbig(struct life_t * life, bool append) {
     int x,y;
     
@@ -72,6 +77,10 @@ void printbig(struct life_t * life, bool append) {
     fclose(f);
 }
 
+/**
+ * Function that show the grid on console or save it in a file
+ * according to the result of the is_big(...) function
+ */
 void display(struct life_t * life, bool append){
 
     if(is_big(life)){
@@ -82,6 +91,9 @@ void display(struct life_t * life, bool append){
     }
 }
 
+/**
+ * Function that initialize all the required variables and structures
+ */
 void initialize(struct life_t *life) {
     debug(*life);
     // 1. Initialize the random seed
@@ -107,6 +119,9 @@ void initialize(struct life_t *life) {
     }
 }
 
+/**
+ * Function that returns the status of the current grid (the number of ALIVE and DEAD cells)
+ */
 void get_grid_status(struct life_t *life){
     int i,j;
     int alive = 0;
@@ -123,6 +138,9 @@ void get_grid_status(struct life_t *life){
     printf("Dead cells: %d", dead);
 }
 
+/**
+ * Function that make one iteration of the system
+ */
 void evolve(struct life_t * life) {
     int x, y, x1, y1;
 
@@ -156,6 +174,9 @@ void evolve(struct life_t * life) {
             life->grid[y][x] = life->next_grid[y][x];
 }
  
+/**
+ * Function that starts the system and measures the execution time
+ */
 void game(struct life_t *life) {
     int x, y, t;
 

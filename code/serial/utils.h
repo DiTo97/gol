@@ -72,6 +72,7 @@ void parse_args(struct life_t *life, int argc, char **argv) {
 
     unsigned opt_param_count = 0;
     int limit = argc - 1;
+    // controlling that command line options are not malformed
     for(i = 1; i < argc; i++) {
         if (strstr(argv[i], "-h")!=NULL) {
             show_usage();
@@ -92,10 +93,13 @@ void parse_args(struct life_t *life, int argc, char **argv) {
     if (opt_param_count > 0) {
         printf("\nParsing arguments with options...\n");
         for (;;) {
+            // return the option character when a short option is recognized. 
+            // For a long option, they return val if flag is NULL, and 0 otherwise
             opt = getopt_long(argc, argv, short_opts, long_opts, &opt_idx);
 
             if (opt == -1) break;
 
+            // TODO Add optarg != NULL in tutti i case
             switch (opt) {
                 case 'c':
                     life->num_cols = strtol(optarg, (char **) NULL, 10);
@@ -155,7 +159,7 @@ void parse_args(struct life_t *life, int argc, char **argv) {
             they will be set to the default values defined in globals.h
         */
 
-        unsigned parsed_arg;
+        long int parsed_arg;
         if (limit > 1)
             parsed_arg = strtol(argv[1], (char **) NULL, 10);
         if (argc > 1) {
@@ -163,6 +167,9 @@ void parse_args(struct life_t *life, int argc, char **argv) {
                 life->num_cols = parsed_arg;
             }
             else {
+                // if the user does not stick with the above specifications
+                // we have to handel at least the fact that argv[1] is a string
+                // and has an txt extension
                 life->input_file = argv[1];
             }
         }
@@ -213,7 +220,9 @@ void parse_args(struct life_t *life, int argc, char **argv) {
 }
 
 /**
- * Generate a random double from min to max. Please, note that RAND_MAX returns a 32 bit integer, whereas a double has 53 bits of mantissa, by IEEE-754 standard. This means that there may be many more double values left out in the specified range.
+ * Generate a random double from min to max. Please, note that RAND_MAX returns a 
+ * 32 bit integer, whereas a double has 53 bits of mantissa, by IEEE-754 standard. 
+ * This means that there may be many more double values left out in the specified range.
  */
 double rand_double(double min, double max) {
     double range = max - min;
@@ -222,6 +231,11 @@ double rand_double(double min, double max) {
     return min + (double) random() / div;
 }
 
+/**
+ * Function that control if the output has to be visualized in the console,
+ * or it has to be printed on file.
+ * @return true if the output is printed on file, false otherwise
+ */
 bool is_big(struct life_t *life) {
     if (life->num_rows * life->num_cols > DEFAULT_MAX_SIZE)
         return true;
@@ -230,7 +244,8 @@ bool is_big(struct life_t *life) {
 }
 
 /**
- * @return The pointer to the open input file, for later use. 
+ * @return The pointer to the open input file, if can be opened and has a valid format, 
+ * NULL otherwise. 
  */
 FILE * set_grid_dimens_from_file(struct life_t *life) {
     FILE *file_ptr;
@@ -249,6 +264,9 @@ FILE * set_grid_dimens_from_file(struct life_t *life) {
     return NULL;
 }
 
+/**
+ * Function that allocates the memory for the grid
+ */
 void malloc_grid(struct life_t *life) {
     int i, j;
 
@@ -265,6 +283,9 @@ void malloc_grid(struct life_t *life) {
     }
 }
 
+/**
+ * Function that initialize the grids with DEAD values
+ */
 void init_empty_grid(struct life_t *life) {
     int i, j;
   
@@ -275,6 +296,9 @@ void init_empty_grid(struct life_t *life) {
         }
 }
 
+/**
+ * Funciton that initialize the grids from the file passed as parameter
+ */
 void init_from_file(struct life_t *life, FILE *file_ptr) {
     int i, j;
 
@@ -289,6 +313,9 @@ void init_from_file(struct life_t *life, FILE *file_ptr) {
     fclose(file_ptr);
 }
 
+/**
+ * Function that initializes the grid with ALIVE values at random positions
+ */
 void init_random(struct life_t *life) {
     int x, y;
 

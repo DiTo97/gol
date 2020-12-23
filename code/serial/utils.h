@@ -54,6 +54,24 @@ void show_usage() {
     exit(EXIT_FAILURE);
 }
 
+FILE* init_log_file(struct life_t * life) {
+    char buffer[100];
+    if (life->input_file!=NULL) {
+        sprintf(buffer, "nc%d_nr%d_nt%d.dat", life->num_cols, life->num_rows, life->timesteps);
+    }
+    else {
+        sprintf(buffer, "nc%d_nr%d_nt%d_prob%.1f_seed%d.dat", life->num_cols, life->num_rows, life->timesteps, life->init_prob, life->seed);
+    }
+    FILE * log_file = fopen(buffer, "a");
+    fprintf(log_file, "timestep\tcurr_time\ttotal_time\n");
+    return log_file;
+}
+
+// timestep, curr_time
+void log_data(FILE* log_file, int timestep, double curr_time, double total_time) {
+    fprintf(log_file,"%d\t%.5f\t%.5f\n", timestep, curr_time, total_time);
+}
+
 void load_defaults(struct life_t *life) {
     life->vis_interval = 1.; //DEFAULT_VIS_INTERVAL * DEFAULT_TIMESTEPS;
     life->num_cols = DEFAULT_SIZE_COLS;
@@ -64,7 +82,7 @@ void load_defaults(struct life_t *life) {
     life->output_file = (char*) DEFAULT_OUT_FILE;
     life->seed = DEFAULT_SEED;
 }
-
+/* This function may give rise to problems when specyfing the -restrict flag  */
 void parse_args(struct life_t *life, int argc, char **argv) {
     int opt = 0;
     int opt_idx = 0;
@@ -73,6 +91,7 @@ void parse_args(struct life_t *life, int argc, char **argv) {
     unsigned opt_param_count = 0;
     int limit = argc - 1;
     // controlling that command line options are not malformed
+    
     for(i = 1; i < argc; i++) {
         if (strstr(argv[i], "-h")!=NULL) {
             show_usage();
@@ -81,7 +100,7 @@ void parse_args(struct life_t *life, int argc, char **argv) {
         if(strchr(argv[i], '-') != NULL) {
             opt_param_count++;
         }
-    }
+    } 
     int diff = limit - opt_param_count;
     if (diff!=opt_param_count && diff!=limit) {
         printf("\nExiting the program: malformed command line argument sequence!\n");
@@ -298,6 +317,8 @@ void init_empty_grid(struct life_t *life) {
 
 /**
  * Funciton that initialize the grids from the file passed as parameter
+ * 
+ * This function may give rise to problems when specyfing the -restrict flag 
  */
 void init_from_file(struct life_t *life, FILE *file_ptr) {
     int i, j;

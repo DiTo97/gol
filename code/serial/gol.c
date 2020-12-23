@@ -176,6 +176,10 @@ void evolve(struct life_t * life) {
  
 /**
  * Function that starts the system and measures the execution time
+ * 
+ * TODO: Call gettimeofday before and after the whole loop over the timesteps, without executing functions not useful for the program's
+ *       results (for instance, display), OR sum all the execution times inside the for loop
+ * 
  */
 void game(struct life_t *life) {
     int x, y, t;
@@ -187,26 +191,36 @@ void game(struct life_t *life) {
     int ncols = life->num_cols;
     int nrows = life->num_rows;
     
-    display(life, false);
+    /* display(life, false); */
 
+    double total_time = 0;
+    double curr_time = 0;
+    FILE* log_file = init_log_file(life);
     for(t = 0; t < life->timesteps; t++) {
-    	if(is_big(life)) 
-            gettimeofday(&start, NULL);
+    	// if(is_big(life)) 
+        gettimeofday(&start, NULL);
         
     	evolve(life);
+        
+    	//if (is_big(life)) {
+    	gettimeofday(&end, NULL);
+        curr_time = (double) ((end.tv_sec * 1000000 + end.tv_usec) - (start.tv_sec * 1000000 + start.tv_usec))/1000;
+    	printf("Iteration %d is : %.5f ms\n", t, curr_time);
+        total_time += curr_time;
+        log_data(log_file, t, curr_time, total_time);
 
-        if((t % life->vis_interval) == 0){
+    	//}
+
+       /*  if((t % life->vis_interval) == 0){
             display(life, true);
             fflush(stdout);
-        }
-        
-    	if (is_big(life)) {
-    		gettimeofday(&end, NULL);
-    	    printf("Iteration %d is : %ld ms\n", t,
-    	       ((end.tv_sec * 1000000 + end.tv_usec) - 
-    	       (start.tv_sec * 1000000 + start.tv_usec))/1000 );
-    	}
+        } */
     }
+    // TODO: add data of the experiment, log experiments on file
+    printf("Total execution time : %.5f ms\n", total_time);
+    fflush(log_file);
+    fclose(log_file);
+
 }
  
 int main(int argc, char **argv) {

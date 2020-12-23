@@ -30,8 +30,10 @@ do
                     icc -O$j -ipo -g -qopt-report=2 -qopt-report-file=$qopt_file -qopt-report-phase=vec -xHost gol.c -o gol
                 else
                     icc -O$j -ipo -g -qopt-report=2 -qopt-report-file=$qopt_file -qopt-report-phase=vec gol.c -o gol
+                fi
 
                 ./gol $ncols $nrows $tsteps $outfile $disp_freq $seed $init_prob
+
             done
         else
             icc -O$j -ipo -g -qopt-report=2 -qopt-report-file=$qopt_file -qopt-report-phase=vec gol.c -o gol

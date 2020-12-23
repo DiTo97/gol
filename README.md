@@ -15,3 +15,16 @@ Comparative analysis of possible parallel implementations of Conway's famous [Ga
 - [What is a Dwarf in HPC?](https://www5.in.tum.de/lehre/vorlesungen/hpc/WS15/structured.pdf)
 
 <!-- TODO: Specify the input format -->
+
+<!-- Compiler optimization -->
+icc -O{i} -ipo -fast -g -opt-report -xHost -sse{k}
+
+i = {0, 1, 2, 3} 
+k = {1, 2, 3}
+
+-qopt-report={0, ..., 5}
+-qopt-report-phase=vec
+
+-g, creates symbols for debugging
+
+-ipo, slows compilation down in exchange of an appreciable boost in performance.

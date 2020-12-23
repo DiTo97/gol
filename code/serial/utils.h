@@ -32,14 +32,14 @@ void show_usage() {
     printf("  -i|--input filename       Input file. See README for format. Default: None.\n");
     printf("  -o|--output filename      Output file. Default: %s.\n", DEFAULT_OUT_FILE);
     printf("  -h|--help                 Show this help page.\n");
-    printf("  -v|--vis_interval         Display frequency of the grid. Default: %d\n\n",DEFAULT_VIS_INTERVAL);
+    printf("  -v|--vis_interval         Display frequency of the grid. Default: %f\n\n",DEFAULT_VIS_INTERVAL);
 
     printf("\nUsage (specify in the following order (at least one argument)) [2]: gol [no options]\n");
     printf("  1) Number of columns in grid. Default: %d\n", DEFAULT_SIZE_ROWS);
     printf("  2) Number of rows in grid. Default: %d\n", DEFAULT_SIZE_COLS);
     printf("  3) Number of timesteps to run. Default: %d\n", DEFAULT_TIMESTEPS);
     printf("  4) Output file. Default: %s.\n", DEFAULT_OUT_FILE);
-    printf("  5) Display frequency of the grid. Default: %d\n", DEFAULT_VIS_INTERVAL);
+    printf("  5) Display frequency of the grid. Default: %f\n", DEFAULT_VIS_INTERVAL);
     printf("  6) Random seed initializer. Default: %d\n", DEFAULT_SEED);
     printf("  7) Probability used for grid initialization. Default: %d\n\n", DEFAULT_INIT_PROB);
 
@@ -47,7 +47,7 @@ void show_usage() {
     printf("  1) Input file. Default: None.\n");
     printf("  2) Number of timesteps to run. Default: %d\n", DEFAULT_TIMESTEPS);
     printf("  3) Output file. Default: %s.\n", DEFAULT_OUT_FILE);
-    printf("  4) Display frequency of the grid. Default: %d\n\n", DEFAULT_VIS_INTERVAL);
+    printf("  4) Display frequency of the grid. Default: %f\n\n", DEFAULT_VIS_INTERVAL);
             
     printf("\nSee README for more information.\n\n");
 
@@ -57,10 +57,12 @@ void show_usage() {
 FILE* init_log_file(struct life_t * life) {
     char buffer[100];
     if (life->input_file!=NULL) {
-        sprintf(buffer, "nc%d_nr%d_nt%d.dat", life->num_cols, life->num_rows, life->timesteps);
+        sprintf(buffer, "nc%d_nr%d_nt%d_%lu.dat", life->num_cols, life->num_rows,
+                life->timesteps, (unsigned long) time(NULL));
     }
     else {
-        sprintf(buffer, "nc%d_nr%d_nt%d_prob%.1f_seed%d.dat", life->num_cols, life->num_rows, life->timesteps, life->init_prob, life->seed);
+        sprintf(buffer, "nc%d_nr%d_nt%d_prob%.1f_seed%d_%lu.dat", life->num_cols, life->num_rows,
+                life->timesteps, life->init_prob, life->seed, (unsigned long) time(NULL));
     }
     FILE * log_file = fopen(buffer, "a");
     fprintf(log_file, "timestep\tcurr_time\ttotal_time\n");
@@ -149,7 +151,7 @@ void parse_args(struct life_t *life, int argc, char **argv) {
                     break;
                 case 'v':
                     if (optarg != NULL)
-                        life->vis_interval = strtol(optarg, (char **) NULL, 10);
+                        life->vis_interval = strtod(optarg, (char **) NULL, 10);
                     break;
                 case 'p':
                     if (optarg != NULL)
@@ -211,12 +213,12 @@ void parse_args(struct life_t *life, int argc, char **argv) {
             if (parsed_arg!=0)
                 life->output_file = argv[4];
             else    
-                life->vis_interval = strtol(argv[4], (char **) NULL, 10);
+                life->vis_interval = strtod(argv[4], (char **) NULL, 10);
         }
 
         if (argc > 5) {
             if (parsed_arg!=0)
-                life->vis_interval = strtol(argv[5], (char **) NULL, 10);
+                life->vis_interval = strtod(argv[5], (char **) NULL, 10);
         }
 
         if (argc > 6) {

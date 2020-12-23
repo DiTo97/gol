@@ -15,6 +15,8 @@ Comparative analysis of possible parallel implementations of Conway's famous [Ga
 - [What is a Dwarf in HPC?](https://www5.in.tum.de/lehre/vorlesungen/hpc/WS15/structured.pdf)
 
 <!-- TODO: Specify the input format -->
+<!-- TODO: Remove ghost rows -->
+<!-- TODO: Add OpenMP parallelization via pragmas -->
 
 <!-- Compiler optimization -->
 icc -O{i} -ipo -fast -g -opt-report -xHost -sse{k}
@@ -28,3 +30,13 @@ k = {1, 2, 3}
 -g, creates symbols for debugging
 
 -ipo, slows compilation down in exchange of an appreciable boost in performance.
+
+<!-- Parallelization via OpenMP -->
+
+- Parallelize cells' update evaluation
+- Parallelize cells' update value
+- Parallelize board inner mallocs
+- Parallelize board initialization to DEAD cells
+- Parallelize board random initialization
+- Parallelize board dump to file
+- Parallelize board free memory

@@ -147,6 +147,7 @@ void evolve(struct life_t * life) {
     int n_cols = life->num_cols;
     int n_rows = life->num_rows;
  
+    // FIXME: Change evaluation procedure to account for ghost rows
     for (y = 0; y < n_cols; y++) 
         for (x = 0; x < n_rows; x++) {
             int n = 0;

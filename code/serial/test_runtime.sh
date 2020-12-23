@@ -25,7 +25,7 @@ do
             do
                 qopt_file="report_${i}_${j}_${xhost}"
 
-                if [ $xhost -eq 1]
+                if [ $xhost -eq 1 ]
                 then
                     icc -O$j -ipo -g -qopt-report=2 -qopt-report-file=$qopt_file -qopt-report-phase=vec -xHost gol.c -o gol
                 else

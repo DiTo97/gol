@@ -151,7 +151,7 @@ void parse_args(struct life_t *life, int argc, char **argv) {
                     break;
                 case 'v':
                     if (optarg != NULL)
-                        life->vis_interval = strtod(optarg, (char **) NULL, 10);
+                        life->vis_interval = strtod(optarg, (char **) NULL);
                     break;
                 case 'p':
                     if (optarg != NULL)
@@ -213,12 +213,12 @@ void parse_args(struct life_t *life, int argc, char **argv) {
             if (parsed_arg!=0)
                 life->output_file = argv[4];
             else    
-                life->vis_interval = strtod(argv[4], (char **) NULL, 10);
+                life->vis_interval = strtod(argv[4], (char **) NULL);
         }
 
         if (argc > 5) {
             if (parsed_arg!=0)
-                life->vis_interval = strtod(argv[5], (char **) NULL, 10);
+                life->vis_interval = strtod(argv[5], (char **) NULL);
         }
 
         if (argc > 6) {

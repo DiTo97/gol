@@ -20,8 +20,19 @@ struct life_t {
     char *output_file;    // Output filename
 };
 
-void debug(struct life_t life);
+/*********************
+ * Display functions *
+ *********************/
 
-void display(struct life_t *life, bool append);
+void display(struct life_t life, bool append);
+void get_grid_status(struct life_t life);
+void printbig(struct life_t life, bool append);
+void show(struct life_t life);
+
+/***********************
+ * Evolution functions *
+ ***********************/
+
+void evolve(struct life_t *life);
+void game(struct life_t *life);
 void initialize(struct life_t *life);
-void get_grid_status(struct life_t *life);

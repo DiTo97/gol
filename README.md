@@ -14,11 +14,12 @@ Comparative analysis of possible parallel implementations of Conway's famous [Ga
 - [A Performance Analysis of GoL](https://arxiv.org/pdf/1209.4408.pdf)
 - [What is a Dwarf in HPC?](https://www5.in.tum.de/lehre/vorlesungen/hpc/WS15/structured.pdf)
 
-<!-- TODO: Specify the input format -->
-<!-- TODO: Remove ghost rows -->
+<!-- TODO: Specify the input file format -->
 <!-- TODO: Add OpenMP parallelization via pragmas -->
+<!-- TODO: Account for ghost rows with MPI -->
 
 <!-- Compiler optimization -->
+
 icc -O{i} -ipo -fast -g -opt-report -xHost -sse{k}
 
 i = {0, 1, 2, 3} 
@@ -42,5 +43,5 @@ k = {1, 2, 3}
 - Parallelize board free memory
 
 <!-- Commit message -->
-- Removed vis interval as too difficult to use properly
-- Polished parse_args() function
+
+- Polished comments and functions separation

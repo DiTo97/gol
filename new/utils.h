@@ -1,10 +1,14 @@
-#ifndef UTILS_H
-#define UTILS_H 
+#ifndef GoL_UTILS_H
+#define GoL_UTILS_H 
 
 #include <getopt.h>
 #include <stdbool.h>
 #include <time.h>
 #include "globals.h"
+
+/*********************
+ * Parsing functions *
+ *********************/  
 
 static const char *short_opts = "c:r:t:i:s:o:p:h?";
 static const struct option long_opts[] = {
@@ -54,24 +58,24 @@ void show_usage() {
 /**
  * Load all default GoL settings from globals.h
  * 
- * @param life, the main data structure behind a GoL instance.
+ * @param life    The main data structure behind a GoL instance.
  */ 
 void load_defaults(struct life_t *life) {
-    life->num_cols = DEFAULT_SIZE_COLS;
-    life->num_rows = DEFAULT_SIZE_ROWS;
-    life->timesteps = DEFAULT_TIMESTEPS;
-    life->init_prob = DEFAULT_INIT_PROB;
-    life->input_file = NULL;
-    life->output_file = DEFAULT_OUT_FILE;
-    life->seed = DEFAULT_SEED;
+    life->seed        = DEFAULT_SEED;
+    life->num_cols    = DEFAULT_SIZE_COLS;
+    life->num_rows    = DEFAULT_SIZE_ROWS;
+    life->timesteps   = DEFAULT_TIMESTEPS;
+    life->init_prob   = DEFAULT_INIT_PROB;
+    life->input_file  = NULL;
+    life->output_file = (char*) DEFAULT_OUT_FILE;
 }
 
 /**
  * Parse the seed's value from its command line argument. A 0 value will be turned into a random seed via time(NULL).
  * 
- * @param _seed, the command line argument.
+ * @param _seed    The command line argument.
  * 
- * @return seed, the corresponding seed's unsigned int value.
+ * @return seed    The corresponding seed's unsigned int value.
  */ 
 unsigned int parse_seed(char *_seed) {
     int seed = strtol(_seed, (char **) NULL, 10);
@@ -119,7 +123,10 @@ void parse_args(struct life_t *life, int argc, char **argv) {
     load_defaults(life);
 
     if (opt_params_count > 0) { // Explicit opts were passed
-        printf("\nParsing arguments with options...\n");
+        printf("\nParsing arguments with options...\n\n");
+
+        fflush(stdout);
+        usleep(100000);
 
         for (;;) {
             // Return the subsequent long/short opt value
@@ -157,7 +164,10 @@ void parse_args(struct life_t *life, int argc, char **argv) {
             }
         }
     } else { // No explicit opts were passed  
-        printf("\nParsing arguments with no options...\n");
+        printf("\nParsing arguments with no options...\n\n");
+
+        fflush(stdout);
+        usleep(100000);
         
         // Non-explicit arguments must stick to the following sequence:
         //     columns, rows, (tsteps, output, seed, init_prob)
@@ -168,7 +178,7 @@ void parse_args(struct life_t *life, int argc, char **argv) {
         // [*] Round brackets indicate optional arguments.
 
         long int parsed_arg;
-        bool input_spec; // Whether an input file is specified for GoL or not
+        bool input_spec; // Whether an input file is specified for GoL
 
         // Are there enough arguments to parse?
         if (limit > 1) {
@@ -203,15 +213,184 @@ void parse_args(struct life_t *life, int argc, char **argv) {
 
             if (argc > 5) {
                 if (input_spec)
-                    life->seed = parse_seed(argv[6]);
+                    life->seed = parse_seed(argv[5]);
             }
 
             if (argc > 6) {
                 if (input_spec)
-                    life->init_prob = strtod(argv[7], (char **) NULL);
+                    life->init_prob = strtod(argv[6], (char **) NULL);
             }
         }
     }
+}
+
+/*********************
+ * Utility functions *
+ *********************/ 
+
+#ifdef GoL_DEBUG
+void debug(struct life_t life) {
+    printf("Number of cols: %d\n", life.num_cols);
+    printf("Number of rows: %d\n", life.num_rows);
+    printf("Number of timesteps: %d\n", life.timesteps);
+    printf("Probability for grid initialization: %f\n", life.init_prob);
+    printf("Random seed initializer: %d\n", life.seed);
+    printf("Input file: %s\n", life.input_file == NULL ? "None" : life.input_file);
+    printf("Output file: %s\n\n", life.output_file);
+
+    fflush(stdout);
+}
+#endif
+
+/**
+ * Generate a random double from min to max.
+ * 
+ * Please, note that RAND_MAX returns a 32 bit integer, whereas a double has 53 bits of mantissa, by IEEE-754 standard. This means that there may be many more double values left out in the specified range which are not yet covered by this implementation.
+ */
+double rand_double(double min, double max) {
+    double range = max - min;
+    double div = RAND_MAX / range;
+
+    return min + (double) random() / div;
+}
+
+/**
+ * Evaluate whether the GoL board is larger than DEFAULT_MAX_SIZE.
+ * 
+ * @return true if GoL grid larger, false otherwise
+ */
+bool is_big(struct life_t life) {
+    return life.num_rows * life.num_cols > DEFAULT_MAX_SIZE;
+}
+
+/*********************
+ * Logging functions *
+ *********************/ 
+
+/**
+ * Initialize a tab-separated log file, whose name varies with GoL configuration's settings.
+ * 
+ * @return log_ptr    The pointer to the tab-separated log file with (timestep, current time, total time) columns
+ */
+FILE* init_log_file(struct life_t life) {
+    char buffer[100];
+
+    if (life.input_file != NULL)
+        sprintf(buffer, "GoL_nc%d_nr%d_nt%d_%lu.log", life.num_cols, life.num_rows,
+                life.timesteps, (unsigned long) time(NULL));
+    else
+        sprintf(buffer, "GoL_nc%d_nr%d_nt%d_prob%.1f_seed%d_%lu.log", life.num_cols, life.num_rows,
+                life.timesteps, life.init_prob, life.seed, (unsigned long) time(NULL));
+
+    FILE *log_ptr = fopen(buffer, "a");
+    fprintf(log_ptr, "timestep\tcur_time\ttot_time\n");
+
+    // The log file's name is guaranteed to be unique until year 2038,
+    // as it implies the call to time(NULL).
+    return log_ptr;
+}
+
+/**
+ * Log a (timestep, current time, total time) triplet onto the log file.
+ * 
+ * @param timestep    The current generation of GoL's evolution.
+ * @param cur_time    The execution time of the current generation of GoL.
+ * @param tot_time    The total execution time since GoL's evolution started.
+ */
+void log_data(FILE *log_ptr, int timestep, double cur_time, double tot_time) {
+    fprintf(log_ptr, "%-8d\t%-8.3f\t%-8.3f\n", timestep, cur_time, tot_time); // -8, as columns are 8-char long
+}
+
+/****************************
+ * Initialization functions *
+ ****************************/ 
+
+/**
+ * Update the GoL board's dimensions from file, if it exists and it has a valid format.
+ * 
+ * @return file_ptr    The pointer to the open input file, NULL otherwise. 
+ */
+FILE* set_grid_dimens_from_file(struct life_t *life) {
+    FILE *file_ptr;
+
+    if (life->input_file != NULL) {
+        if ((file_ptr = fopen(life->input_file, "r")) == NULL) {
+            perror("[*] Failed to open the input file.\n");
+            perror("[*] Launching the simulation in default configuration...\n");
+        } else if (fscanf(file_ptr, "%d %d\n", &life->num_cols, &life->num_rows) == EOF) {
+            perror("[*] The input file only defines GoL board's dimensions!\n");
+            perror("[*] Launching the simulation in default configuration...\n");
+        } else
+            return file_ptr;
+    }
+
+    // An error has occured
+    return NULL;
+}
+
+/**
+ * Allocate memory for the current and next GoL board.
+ * 
+ * @todo Account for ghost rows (+ 2) with MPI.
+ */
+void malloc_grid(struct life_t *life) {
+    int i, j;
+
+    int ncols = life->num_cols;
+    int nrows = life->num_rows;
+
+    life->grid      = (unsigned **) malloc(sizeof(unsigned *) * (ncols));
+    life->next_grid = (unsigned **) malloc(sizeof(unsigned *) * (ncols));
+
+    for (i = 0; i < ncols; i++) {
+        life->grid[i]      = (unsigned *) malloc(sizeof(unsigned) * (nrows));
+        life->next_grid[i] = (unsigned *) malloc(sizeof(unsigned) * (nrows));
+    }
+}
+
+/**
+ * Initialize the GoL board with DEAD values.
+ */
+void init_empty_grid(struct life_t *life) {
+    int i, j;
+  
+    for (i = 0; i < life->num_cols; i++)
+        for (j = 0; j < life->num_rows; j++) {
+            life->grid[i][j]      = DEAD;
+            life->next_grid[i][j] = DEAD;
+        }
+}
+
+/**
+ * Initialize the GoL board with ALIVE values from file.
+ * 
+ * @param file_ptr    The pointer to the open input file.
+ */
+void init_from_file(struct life_t *life, FILE *file_ptr) {
+    int i, j;
+
+    if(life->input_file != NULL)
+        // Every line from the file contains row/column coordinates
+        // of every cell that has to be initialized as ALIVE.
+        while (fscanf(file_ptr, "%d %d\n", &i, &j) != EOF) {
+            life->grid[i][j]      = ALIVE;
+            life->next_grid[i][j] = ALIVE;
+        }
+
+    fclose(file_ptr);
+}
+
+/**
+ * Initialize the GoL board with ALIVE values randomly.
+ */
+void init_random(struct life_t *life) {
+    int x, y;
+
+    for (x = 0; x < life->num_cols; x++) 
+        for (y = 0; y < life->num_rows; y++) { 
+            if (rand_double(0., 1.) < life->init_prob)
+                life->grid[y][x] = ALIVE;
+        }
 }
 
 #endif

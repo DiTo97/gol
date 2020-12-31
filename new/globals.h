@@ -1,5 +1,5 @@
-#ifndef GLOBAL_H
-#define GLOBAL_H 
+#ifndef GoL_GLOBALS_H
+#define GoL_GLOBALS_H 
 
 const int DEFAULT_TIMESTEPS = 1000;
 
@@ -8,7 +8,7 @@ const int DEFAULT_SIZE_COLS = 30;
 
 const float DEFAULT_INIT_PROB = 0.5;
 
-const char *DEFAULT_OUT_FILE = "gol.out";
+const char *DEFAULT_OUT_FILE = "GoL.out";
 
 // Threshold on grid size, above which the grid's evolution
 // is not displayed at every timestep.

@@ -1,7 +1,6 @@
 #ifndef GLOBAL_H
 #define GLOBAL_H 
 
-const float DEFAULT_VIS_INTERVAL = 1.;
 const int DEFAULT_TIMESTEPS = 1000;
 
 const int DEFAULT_SIZE_ROWS = 30;

@@ -28,22 +28,22 @@ void show_usage() {
     printf("  -r|--rows number          Number of rows in grid. Default: %d\n", DEFAULT_SIZE_ROWS);
     printf("  -t|--tsteps number        Number of timesteps to run. Default: %d\n", DEFAULT_TIMESTEPS);
     printf("  -s|--seed number          Random seed initializer. Default: %d\n", DEFAULT_SEED);
-    printf("  -p|--init_prob number     Probability for grid initialization. Default: %d\n", DEFAULT_SEED);
+    printf("  -p|--init_prob number     Probability for grid initialization. Default: %f\n", DEFAULT_INIT_PROB);
     printf("  -i|--input filename       Input file. See README for format. Default: None.\n");
     printf("  -o|--output filename      Output file. Default: %s.\n", DEFAULT_OUT_FILE);
     printf("  -h|--help                 Show this help page.\n");
-    printf("  -v|--vis_interval         Display frequency of the grid. Default: %f\n\n",DEFAULT_VIS_INTERVAL);
+    printf("  -v|--vis_interval         Display frequency of the grid. Default: %f\n\n", DEFAULT_VIS_INTERVAL);
 
-    printf("\nUsage (specify in the following order (at least one argument)) [2]: gol [no options]\n");
+    printf("\nUsage [2] (in the following order): gol [no options]\n");
     printf("  1) Number of columns in grid. Default: %d\n", DEFAULT_SIZE_ROWS);
     printf("  2) Number of rows in grid. Default: %d\n", DEFAULT_SIZE_COLS);
     printf("  3) Number of timesteps to run. Default: %d\n", DEFAULT_TIMESTEPS);
     printf("  4) Output file. Default: %s.\n", DEFAULT_OUT_FILE);
     printf("  5) Display frequency of the grid. Default: %f\n", DEFAULT_VIS_INTERVAL);
     printf("  6) Random seed initializer. Default: %d\n", DEFAULT_SEED);
-    printf("  7) Probability used for grid initialization. Default: %d\n\n", DEFAULT_INIT_PROB);
+    printf("  7) Probability for grid initialization. Default: %f\n\n", DEFAULT_INIT_PROB);
 
-    printf("\nUsage (specify in the following order) [3]: gol [no options]\n");
+    printf("\nUsage [3] (in the following order): gol [no options]\n");
     printf("  1) Input file. Default: None.\n");
     printf("  2) Number of timesteps to run. Default: %d\n", DEFAULT_TIMESTEPS);
     printf("  3) Output file. Default: %s.\n", DEFAULT_OUT_FILE);
@@ -84,6 +84,7 @@ void load_defaults(struct life_t *life) {
     life->output_file = (char*) DEFAULT_OUT_FILE;
     life->seed = DEFAULT_SEED;
 }
+
 /* This function may give rise to problems when specyfing the -restrict flag  */
 void parse_args(struct life_t *life, int argc, char **argv) {
     int opt = 0;

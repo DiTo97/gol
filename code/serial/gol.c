@@ -8,9 +8,6 @@
  * implementations either in OpenMP, MPI or CUDA.
  */
 
-// TODO: Unify show() and printbig() under a single function via is_big().
-// TODO: Adjust the grid evolution to use the life_t struct.
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

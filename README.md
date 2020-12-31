@@ -27,7 +27,7 @@ k = {1, 2, 3}
 -qopt-report={0, ..., 5}
 -qopt-report-phase=vec
 
--g, creates symbols for debugging
+-g, creates symbols for debugging.
 
 -ipo, slows compilation down in exchange of an appreciable boost in performance.
 
@@ -40,3 +40,7 @@ k = {1, 2, 3}
 - Parallelize board random initialization
 - Parallelize board dump to file
 - Parallelize board free memory
+
+<!-- Commit message -->
+- Removed vis interval as too difficult to use properly
+- Polished parse_args() function

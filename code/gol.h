@@ -11,6 +11,10 @@ struct life_t {
     double init_prob;     // Probability to mark a cell as ALIVE
                           // when following a random initialization
 
+    #ifdef _OPENMP
+    int num_threads;      // Number of threads adopted by OpenMP
+    #endif
+
     unsigned int seed;    // Random seed initializer
     
     unsigned **grid;      // Game grid at the current step

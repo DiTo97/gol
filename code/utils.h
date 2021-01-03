@@ -9,19 +9,28 @@
 #include <omp.h> // Enable OpenMP parallelization
 #endif
 
+#ifdef GoL_DEBUG
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 #include "globals.h"
 
 /*********************
  * Parsing functions *
  *********************/  
 
-static const char *short_opts = "c:r:t:i:s:o:p:h?";
+static const char *short_opts = "c:r:t:i:s::n:o:p:h?";
 static const struct option long_opts[] = {
     { "columns", required_argument, NULL, 'c' },
     { "rows", required_argument, NULL, 'r' },
     { "tsteps", required_argument, NULL, 't' },
     { "output", required_argument, NULL, 'o' },
     { "input", required_argument, NULL, 'i' },
+    #ifdef _OPENMP
+    { "nthreads", required_argument, NULL, 'n' },
+    #endif
     { "seed", optional_argument, NULL, 's' },
     { "init_prob", required_argument, NULL, 'p' },
     { "help", no_argument, NULL, 'h' },
@@ -38,6 +47,9 @@ void show_usage() {
     printf("  -t|--tsteps number        Number of timesteps to run. Default: %d\n", DEFAULT_TIMESTEPS);
     printf("  -s|--seed number          Random seed initializer. Default: %d\n", DEFAULT_SEED);
     printf("  -p|--init_prob number     Probability for grid initialization. Default: %f\n", DEFAULT_INIT_PROB);
+    #ifdef _OPENMP
+    printf("  -n|--nthreads             Number of threads adopted by OpenMP. Default: %d\n", DEFAULT_NUM_THREADS);
+    #endif
     printf("  -i|--input filename       Input file. See README for format. Default: None.\n");
     printf("  -o|--output filename      Output file. Default: %s.\n", DEFAULT_OUT_FILE);
     printf("  -h|--help                 Show this help page.\n\n");
@@ -48,12 +60,22 @@ void show_usage() {
     printf("  3) Number of timesteps to run. Default: %d\n", DEFAULT_TIMESTEPS);
     printf("  4) Output file. Default: %s.\n", DEFAULT_OUT_FILE);
     printf("  5) Random seed initializer. Default: %d\n", DEFAULT_SEED);
-    printf("  6) Probability for grid initialization. Default: %f\n\n", DEFAULT_INIT_PROB);
+    printf("  6) Probability for grid initialization. Default: %f\n", DEFAULT_INIT_PROB);
+    #ifdef _OPENMP
+    printf("  7) Number of threads adopted by OpenMP. Default: %d\n", DEFAULT_NUM_THREADS);
+    #else
+    printf("\n");
+    #endif
 
     printf("\nUsage [3] (in the following order): gol [no opts]\n");
     printf("  1) Input file. Default: None.\n");
     printf("  2) Number of timesteps to run. Default: %d\n", DEFAULT_TIMESTEPS);
-    printf("  3) Output file. Default: %s\n\n", DEFAULT_OUT_FILE);
+    printf("  3) Output file. Default: %s\n", DEFAULT_OUT_FILE);
+    #ifdef _OPENMP
+    printf("  4) Number of threads adopted by OpenMP. Default: %d\n", DEFAULT_NUM_THREADS);
+    #else
+    printf("\n");
+    #endif
             
     printf("\nSee README for more information.\n\n");
 
@@ -71,6 +93,9 @@ void load_defaults(struct life_t *life) {
     life->num_rows    = DEFAULT_SIZE_ROWS;
     life->timesteps   = DEFAULT_TIMESTEPS;
     life->init_prob   = DEFAULT_INIT_PROB;
+    #ifdef _OPENMP
+    life->num_threads = DEFAULT_NUM_THREADS;
+    #endif
     life->input_file  = NULL;
     life->output_file = (char*) DEFAULT_OUT_FILE;
 }
@@ -90,6 +115,23 @@ unsigned int parse_seed(char *_seed) {
     else
         return (unsigned int) seed;
 }
+
+#ifdef _OPENMP
+/**
+ * Parse the number of threads adopted by OpenMP.
+ * 
+ * @param _nthreads    The command line argument.
+ * 
+ * @return    The corresponding number of threads or DEFAULT_MAX_THREADS if the number is bigger than it.
+ */ 
+int parse_nthreads(char *_nthreads) {
+    int nthreads = strtol(_nthreads, (char **) NULL, 10);
+
+    return nthreads > DEFAULT_MAX_THREADS \
+        ? DEFAULT_MAX_THREADS : nthreads;
+
+}
+#endif
 
 /**
  * Parse command line arguments depending on whether opts are explicitly indicated or not.
@@ -159,13 +201,17 @@ void parse_args(struct life_t *life, int argc, char **argv) {
                 case 'o':
                     life->output_file = optarg;
                     break;
+                #ifdef _OPENMP
+                case 'n':
+                    life->num_threads = parse_nthreads(optarg);
+                    break;
+                #endif
                 case 'p':
                     life->init_prob = strtod(optarg, (char **) NULL);
                     break;
                 case '?':
-                    show_usage();
                 default:
-                    break;
+                    show_usage();
             }
         }
     } else { // No explicit opts were passed  
@@ -175,56 +221,69 @@ void parse_args(struct life_t *life, int argc, char **argv) {
         usleep(100000);
         
         // Non-explicit arguments must stick to the following sequence:
-        //     columns, rows, (tsteps, output, seed, init_prob)
+        //     columns, rows, (tsteps, output, seed, init_prob, nthreads)
         // 
         // when not reading GoL from file. Viceversa, they should be specified as:
-        //     input, (tsteps, output)
+        //     input, (tsteps, output, nthreads)
         // 
         // [*] Round brackets indicate optional arguments.
 
         long int parsed_arg;
-        bool input_spec; // Whether an input file is specified for GoL
+        bool input_not_spec; // Whether an input file is specified for GoL
 
         // Are there enough arguments to parse?
         if (limit > 1) {
             parsed_arg = strtol(argv[1], (char **) NULL, 10);
-            input_spec = (parsed_arg != 0) ? true : false;
+
+            input_not_spec = (parsed_arg != 0) \
+                ? true : false;
 
             if (argc > 1) {
-                if (input_spec)
+                if (input_not_spec)
                     life->num_cols = parsed_arg;
                 else
                     life->input_file = argv[1];
             }
 
             if (argc > 2) {
-                if (input_spec) 
+                if (input_not_spec) 
                     life->num_rows = strtol(argv[2], (char **) NULL, 10);
                 else 
                     life->timesteps = strtol(argv[2], (char **) NULL, 10);
             }
 
             if (argc > 3) {
-                if (input_spec)
+                if (input_not_spec)
                     life->timesteps = strtol(argv[3], (char **) NULL, 10);
                 else
                     life->output_file = argv[3];
             }
 
             if (argc > 4) {
-                if (input_spec)
+                if (input_not_spec)
                     life->output_file = argv[4];
+                #ifdef _OPENMP
+                else
+                    life->num_threads = parse_nthreads(argv[4]);
+                #endif
             }
 
             if (argc > 5) {
-                if (input_spec)
+                if (input_not_spec)
                     life->seed = parse_seed(argv[5]);
             }
 
             if (argc > 6) {
-                if (input_spec)
+                if (input_not_spec)
                     life->init_prob = strtod(argv[6], (char **) NULL);
             }
+
+            #ifdef _OPENMP
+            if (argc > 7) {
+                if (input_not_spec)
+                    life->num_threads = parse_nthreads(argv[7]);
+            }
+            #endif
         }
     }
 }
@@ -240,6 +299,9 @@ void debug(struct life_t life) {
     printf("Number of timesteps: %d\n", life.timesteps);
     printf("Probability for grid initialization: %f\n", life.init_prob);
     printf("Random seed initializer: %d\n", life.seed);
+    #ifdef _OPENMP
+    printf("Number of threads adopted by OpenMP: %d\n", life.num_threads);
+    #endif
     printf("Input file: %s\n", life.input_file == NULL ? "None" : life.input_file);
     printf("Output file: %s\n\n", life.output_file);
 
@@ -268,24 +330,54 @@ bool is_big(struct life_t life) {
     return life.num_rows * life.num_cols > DEFAULT_MAX_SIZE;
 }
 
+/**
+ * Get the elapsed wall-clock time between two time intervals.
+ *
+ * @param start, end    The two time intervals.
+ *
+ * @return    The elapsed wall-clock time in ms.
+ */
+double elapsed_wtime(struct timeval start, struct timeval end) {
+    return (double) ((end.tv_sec * 1000000 + end.tv_usec) \
+            - (start.tv_sec * 1000000 + start.tv_usec)) / 1000;
+}
+
 /*********************
  * Logging functions *
- *********************/ 
+ *********************/
 
+#ifdef GoL_DEBUG
 /**
  * Initialize a tab-separated log file, whose name varies with GoL configuration's settings.
  * 
  * @return log_ptr    The pointer to the tab-separated log file with (timestep, current time, total time) columns
  */
 FILE* init_log_file(struct life_t life) {
+    char *logs_dir = (char*) DEFAULT_LOGS_DIR;
+    
     char buffer[100];
+    char __omp[7]; // 7 := "omp" + 3-digit nthreads + "_"
+
+    struct stat st = {0};
+
+    if (stat(logs_dir, &st) == -1) { // Create the logs dir if it doesn't exist​​​​
+        mkdir(logs_dir, 0744);
+    }
+    
+    #ifdef _OPENMP
+    sprintf(__omp, "omp%d_", life.num_threads);
+    #else
+    sprintf(__omp, "");
+    #endif
 
     if (life.input_file != NULL)
-        sprintf(buffer, "logs/GoL_nc%d_nr%d_nt%d_%lu.log", life.num_cols, life.num_rows,
-                life.timesteps, (unsigned long) time(NULL));
+        sprintf(buffer, "%s/GoL_%snc%d_nr%d_nt%d_%lu.log", logs_dir, __omp,
+                life.num_cols, life.num_rows, life.timesteps,
+                (unsigned long) time(NULL));
     else
-        sprintf(buffer, "logs/GoL_nc%d_nr%d_nt%d_prob%.1f_seed%d_%lu.log", life.num_cols, life.num_rows,
-                life.timesteps, life.init_prob, life.seed, (unsigned long) time(NULL));
+        sprintf(buffer, "%s/GoL_%snc%d_nr%d_nt%d_prob%.1f_seed%d_%lu.log", logs_dir, __omp,
+                life.num_cols, life.num_rows, life.timesteps, life.init_prob,
+                life.seed, (unsigned long) time(NULL));
 
     FILE *log_ptr = fopen(buffer, "a");
     fprintf(log_ptr, "timestep\tcur_time\ttot_time\n");
@@ -305,6 +397,7 @@ FILE* init_log_file(struct life_t life) {
 void log_data(FILE *log_ptr, int timestep, double cur_time, double tot_time) {
     fprintf(log_ptr, "%-8d\t%-8.3f\t%-8.3f\n", timestep, cur_time, tot_time); // -8, as columns are 8-char long
 }
+#endif
 
 /****************************
  * Initialization functions *
@@ -339,7 +432,7 @@ FILE* set_grid_dimens_from_file(struct life_t *life) {
  * @todo Account for ghost rows (+ 2) with MPI.
  */
 void malloc_grid(struct life_t *life) {
-    int i, j;
+    int i;
 
     int ncols = life->num_cols;
     int nrows = life->num_rows;
@@ -347,7 +440,7 @@ void malloc_grid(struct life_t *life) {
     life->grid      = (unsigned **) malloc(sizeof(unsigned *) * (ncols));
     life->next_grid = (unsigned **) malloc(sizeof(unsigned *) * (ncols));
 
-    #pragma omp parallel for private(i, j)
+    #pragma omp parallel for
     for (i = 0; i < ncols; i++) {
         life->grid[i]      = (unsigned *) malloc(sizeof(unsigned) * (nrows));
         life->next_grid[i] = (unsigned *) malloc(sizeof(unsigned) * (nrows));
@@ -360,7 +453,7 @@ void malloc_grid(struct life_t *life) {
 void init_empty_grid(struct life_t *life) {
     int i, j;
   
-    #pragma omp parallel for private(i, j)
+    #pragma omp parallel for private(j)
     for (i = 0; i < life->num_cols; i++)
         for (j = 0; j < life->num_rows; j++) {
             life->grid[i][j]      = DEAD;
@@ -392,12 +485,56 @@ void init_from_file(struct life_t *life, FILE *file_ptr) {
 void init_random(struct life_t *life) {
     int i, j;
 
-    #pragma omp parallel for private(i, j)
     for (i = 0; i < life->num_cols; i++) 
         for (j = 0; j < life->num_rows; j++) { 
             if (rand_double(0., 1.) < life->init_prob)
                 life->grid[i][j] = ALIVE;
         }
+}
+
+/*****************
+ * I/O functions *
+ *****************/ 
+
+/**
+ * Dump the current state of the GoL board to file:
+ *     1. A header will comprise the board dimensions (e.g., 6 6);
+ *     2. A line with (x, y) coordinates will follow for every ALIVE cell.
+ *
+ * @todo Use a different output file.
+ */
+void write_grid(struct life_t life, bool append) {
+    int i, j;
+
+    int ncols = life.num_cols;
+    int nrows = life.num_rows;
+
+    FILE *out_ptr;
+
+    if (life.output_file != NULL) {
+        char *mode = append ? "a" : "w";
+
+        if ((out_ptr = fopen(life.output_file, mode)) == NULL) {
+            perror("[*] Failed to open the output file.");
+            return;
+        }
+
+        fprintf(out_ptr, "%d %d\n", ncols, nrows);
+        
+        #pragma omp parallel for private(j)
+        for (i = 0; i <= ncols; i++) {
+            for (j = 0; j <= nrows; j++) {
+                if (life.grid[i][j] != DEAD)
+                    fprintf(out_ptr, "%d %d\n", i, j);
+            }
+        }
+
+        // Separate different GoL board dumps.
+        fprintf(out_ptr, "\n\n\n\n\n\n****************************************************************************************************\n\n\n\n\n\n");
+
+        fflush(out_ptr);
+        fclose(out_ptr);
+    }
 }
 
 #endif

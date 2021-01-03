@@ -29,8 +29,8 @@ void show(struct life_t life) {
     // \033[J: Clear console.
     printf("\033[H\033[J");
 
-    for (y = 0; y < ncols; y++) {
-        for (x = 0; x < nrows; x++)
+    for (x = 0; x < nrows; x++) {
+        for (y = 0; y < ncols; y++)
             printf(life.grid[y][x] ? "\033[07m  \033[m" : "  ");
 
         printf("\033[E");
@@ -56,13 +56,13 @@ void printbig(struct life_t life, bool append) {
     if(append) out_ptr = fopen(life.output_file, "a" );
     else out_ptr = fopen(life.output_file, "w" );
     
-    for (y = 0; y < ncols; y++) {
-        for (x = 0; x < nrows; x++) 
+    for (x = 0; x < nrows; x++) {
+        for (y = 0; y < ncols; y++) 
             fprintf(out_ptr, "%c", life.grid[y][x] ? 'x' : ' ');
             
         fprintf(out_ptr, "\n");
     }
-    fprintf(out_ptr, "\n\n\n\n\n\n********************************************************************************************\n\n\n\n\n\n");
+    fprintf(out_ptr, "\n\n\n\n\n\n****************************************************************************************************\n\n\n\n\n\n");
 
     fflush(out_ptr);
     fclose(out_ptr);
@@ -76,6 +76,7 @@ void display(struct life_t life, bool append) {
     else show(life);
 }
 
+#ifdef GoL_DEBUG
 /**
  * Print to console the status of the current GoL board: the number of ALIVE and DEAD cells.
  */
@@ -88,6 +89,8 @@ void get_grid_status(struct life_t life) {
     int n_alive = 0;
     int n_dead  = 0;
 
+    #pragma omp parallel for private(j) \
+                reduction(+:n_alive, n_dead)
     for (i = 0; i < ncols; i++) 
         for (j = 0; j < nrows; j++)
             life.grid[i][j] == ALIVE ? n_alive++ : n_dead++;
@@ -98,6 +101,7 @@ void get_grid_status(struct life_t life) {
     fflush(stdout);
     usleep(320000);
 }
+#endif
 
 /***********************
  * Evolution functions *
@@ -182,7 +186,7 @@ void evolve(struct life_t *life) {
         }
 
     // 2. Replace the old grid with the updated one.
-    #pragma omp parallel for private(y, x)
+    #pragma omp parallel for private(x)
     for (y = 0; y < ncols; y++) 
         for (x = 0; x < nrows; x++) 
             life->grid[y][x] = life->next_grid[y][x];
@@ -220,8 +224,7 @@ void game(struct life_t *life) {
         // 3. Track the end time
         gettimeofday(&end, NULL);
 
-        cur_time = (double) ((end.tv_sec * 1000000 + end.tv_usec) \
-            - (start.tv_sec * 1000000 + start.tv_usec)) / 1000;
+        cur_time = elapsed_wtime(start, end);
         tot_time += cur_time;
 
         if (is_big(*life)) {
@@ -242,7 +245,7 @@ void game(struct life_t *life) {
         #endif
     }
 
-    printf("\nTotal execution time for %d generations: %.5f ms\n",
+    printf("\nTotal processing time of GoL evolution for %d generations: %.5f ms\n",
         life->timesteps, tot_time);
 
     #ifdef GoL_DEBUG
@@ -255,7 +258,7 @@ void cleanup(struct life_t *life) {
     int i;
     int ncols = life->num_cols;
 
-    #pragma omp parallel for private(i)
+    #pragma omp parallel for
     for (i = 0; i < ncols; i++) {
         free(life->grid[i]);
         free(life->next_grid[i]);
@@ -275,9 +278,8 @@ int main(int argc, char **argv) {
     // 1. Initialize vars from args
     parse_args(&life, argc, argv);
 
-    // TODO: Control the number of threads via args
     #ifdef _OPENMP
-    omp_set_num_threads(4);
+    omp_set_num_threads(life.num_threads);
     #endif
 
     // 2. Launch the simulation

@@ -25,6 +25,14 @@ icc gol.c -o GoL
 
 -qopenmp, enables OpenMP support
 
+### Number of available threads
+
+- **Number of threads per PID**: ps -o nlwp <pid>
+- **Number of total threads per node**: ps -eo nlwp | tail -n +2 | awk '{ num_threads/- += $1 } END { print num_threads }'
+- **Info on the architecture**: lscpu
+
+256 processors, 64 cores per processor and 4 threads per core.
+
 ### Compiler optimization
 
 icc -O{i} -ipo -fast -g -opt-report -xHost -sse{k}  
@@ -40,11 +48,54 @@ k = {1, 2, 3}
 
 ### FIXMEs
 
-- Should y be private in evolve()?
-
 ### TODOs
 
+- Create a Makefile to run.
+
 - Add a function to dump the grid to file sticking to the input format.
-- Add a global var for logs folder.
+- Add MPI or CUDA support to log filenames.
   
 - Enable MPI support and account for ghost rows.
+
+- Add write_grid() to printbig().
+
+- [How to measure elapsed wall-clock time?](https://stackoverflow.com/questions/12392278/measure-time-in-linux-time-vs-clock-vs-getrusage-vs-clock-gettime-vs-gettimeof)
+
+- [GoL implementation with MPI](https://github.com/freetonik/MPI-life)
+
+#### MPI
+
+Create new data structure <code>chunk_t</code>, with:  
+<code>
+
+    int num_rows;
+    int num_cols;
+
+    int rank;
+    int size;
+
+    #ifdef _OPENMP
+    int num_threads;
+    #endif
+
+    unsigned int **chunk;
+    unisgned int **next_chunk;
+    
+</code>  
+
+-DGoL_MPI ---> #ifdef GoL_MPI  
+
+1. Master parses arguments and creates life_t structure
+2. Master gets number of processes and comm size from MPI
+3. Master computes the correct slices for each process
+4. Master sends slice to corresponding slave
+5. Slaves wait for their slice to come
+6. Slaves allocate memory for their slice
+7. For the number of generations:
+    - Slaves share ghost rows with adjacent slaves
+    - Slaves evolve their slice
+    - If the grid is small:
+        - Slaves send their updated slice back to the master
+        - Master prints the updated grid to console
+8. Slaves send their slice back to the master
+9. Master prints the final grid to console/file

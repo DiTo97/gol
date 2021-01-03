@@ -15,33 +15,36 @@ Comparative analysis of possible parallel implementations of Conway's famous [Ga
 - [What is a Dwarf in HPC?](https://www5.in.tum.de/lehre/vorlesungen/hpc/WS15/structured.pdf)
 
 <!-- TODO: Specify the input file format -->
-<!-- TODO: Add OpenMP parallelization via pragmas -->
-<!-- TODO: Account for ghost rows with MPI -->
 
-<!-- Compiler optimization -->
+## Useful information
 
-icc -O{i} -ipo -fast -g -opt-report -xHost -sse{k}
+### ICC compilation
 
-i = {0, 1, 2, 3} 
+icc -DGoL_DEBUG gol.c -o GoL_deb
+icc gol.c -o GoL
+
+-qopenmp, enables OpenMP support
+
+### Compiler optimization
+
+icc -O{i} -ipo -fast -g -opt-report -xHost -sse{k}  
+i = {0, 1, 2, 3}  
 k = {1, 2, 3}
 
--qopt-report={0, ..., 5}
+-qopt-report={0, ..., 5}  
 -qopt-report-phase=vec
 
 -g, creates symbols for debugging.
 
 -ipo, slows compilation down in exchange of an appreciable boost in performance.
 
-<!-- Parallelization via OpenMP -->
+### FIXMEs
 
-- Parallelize cells' update evaluation
-- Parallelize cells' update value
-- Parallelize board inner mallocs
-- Parallelize board initialization to DEAD cells
-- Parallelize board random initialization
-- Parallelize board dump to file
-- Parallelize board free memory
+- Should y be private in evolve()?
 
-<!-- Commit message -->
+### TODOs
 
-- Polished comments and functions separation
+- Add a function to dump the grid to file sticking to the input format.
+- Add a global var for logs folder.
+  
+- Enable MPI support and account for ghost rows.

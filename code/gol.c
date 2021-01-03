@@ -25,7 +25,9 @@ void show(struct life_t life) {
     int ncols = life.num_cols;
     int nrows = life.num_rows;
 
-    printf("\033[H");
+    // \033[H: Move cursor to top-left corner;
+    // \033[J: Clear console.
+    printf("\033[H\033[J");
 
     for (y = 0; y < ncols; y++) {
         for (x = 0; x < nrows; x++)
@@ -35,7 +37,7 @@ void show(struct life_t life) {
     }
 
     fflush(stdout);
-    usleep(500000);
+    usleep(160000);
 }
 
 /**
@@ -94,7 +96,7 @@ void get_grid_status(struct life_t life) {
     printf("Number of dead cells: %d\n\n", n_dead);
 
     fflush(stdout);
-    usleep(1000000);
+    usleep(320000);
 }
 
 /***********************
@@ -144,17 +146,20 @@ void initialize(struct life_t *life) {
 void evolve(struct life_t *life) {
     int x, y, i, j, r, c;
 
+    int alive_neighbs; // Number of alive neighbours
+
     int ncols = life->num_cols;
     int nrows = life->num_rows;
  
     // 1. Let every cell in the grid evolve.
+    #pragma omp parallel for private(alive_neighbs, x, i, j, r, c)
     for (y = 0; y < ncols; y++) 
         for (x = 0; x < nrows; x++) {
-            int n_alive = 0; // Number of alive neighours
+            alive_neighbs = 0;
 
             // 1.a Check the 3x3 neighbourhood
             for (i = y - 1; i <= y + 1; i++)
-                for (j = x - 1; j <= x + 1; j++)
+                for (j = x - 1; j <= x + 1; j++) {
                     // Compute the actual row/col coordinates in the GoL board.
                     //
                     // Remember that the board represents an hypothetically infinite world. In order to do that,
@@ -165,16 +170,19 @@ void evolve(struct life_t *life) {
 
                     if (!(i == y && j == x) // Skip the current cell (x, y)
                             && life->grid[c][r] == ALIVE)
-                        n_alive++;
+                        alive_neighbs++;
+                }
 
             // 1.b Apply GoL rules to determine the cell's state
-            if (n_alive == 3 || (n_alive == 2 && life->grid[y][x]))
+            if (alive_neighbs == 3
+                    || (alive_neighbs == 2 && life->grid[y][x] == ALIVE))
                 life->next_grid[y][x] = ALIVE;
             else
                 life->next_grid[y][x] = DEAD;
         }
 
     // 2. Replace the old grid with the updated one.
+    #pragma omp parallel for private(y, x)
     for (y = 0; y < ncols; y++) 
         for (x = 0; x < nrows; x++) 
             life->grid[y][x] = life->next_grid[y][x];
@@ -207,7 +215,7 @@ void game(struct life_t *life) {
         gettimeofday(&start, NULL);
         
         // 2. Let the current generation evolve
-    	evolve(life);
+        evolve(life);
         
         // 3. Track the end time
         gettimeofday(&end, NULL);
@@ -216,7 +224,7 @@ void game(struct life_t *life) {
             - (start.tv_sec * 1000000 + start.tv_usec)) / 1000;
         tot_time += cur_time;
 
-    	if (is_big(*life)) {
+        if (is_big(*life)) {
             printf("Generation #%d took %.5f ms\n", t, cur_time);  
 
             // If the GoL grid is large, print it (to file)
@@ -224,7 +232,7 @@ void game(struct life_t *life) {
             if (t == life->timesteps - 1) {
                 display(*life, true);
             }
-    	} else {
+        } else {
             display(*life, true);
         }
 
@@ -243,6 +251,20 @@ void game(struct life_t *life) {
     #endif
 }
 
+void cleanup(struct life_t *life) {
+    int i;
+    int ncols = life->num_cols;
+
+    #pragma omp parallel for private(i)
+    for (i = 0; i < ncols; i++) {
+        free(life->grid[i]);
+        free(life->next_grid[i]);
+    }
+
+    free(life->grid);
+    free(life->next_grid);
+}
+
 /************************************
  * ================================ *
  ************************************/
@@ -253,6 +275,14 @@ int main(int argc, char **argv) {
     // 1. Initialize vars from args
     parse_args(&life, argc, argv);
 
+    // TODO: Control the number of threads via args
+    #ifdef _OPENMP
+    omp_set_num_threads(4);
+    #endif
+
     // 2. Launch the simulation
     game(&life);
+
+    // 3. Free the memory
+    cleanup(&life);
 }

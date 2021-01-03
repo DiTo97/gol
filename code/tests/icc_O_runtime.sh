@@ -1,12 +1,17 @@
 #!/bin/bash
+# Test compilation and execution times for different ICC optimization levels.
 
 BOARD_DIMENS=(30 100 300 1000 3000)
 
 OPT_LEVELS=(0 1 2 3)
 
-binfile="GoL"
+# I/O variables
+srcfile="../gol.c"
+binfile="GoL_test"
+outfile="${binfile}.out"
+
+# Metadata variables
 init_prob=0.5
-outfile="GoL.out"
 seed=1
 tsteps=1000
 
@@ -27,16 +32,16 @@ do
 
                 if [ $xhost -eq 1 ]
                 then
-                    icc -O$j -ipo -g -qopt-report=2 -qopt-report-file=$qopt_file -qopt-report-phase=vec -xHost gol.c -o $binfile
+                    icc -O$j -ipo -g -qopt-report=2 -qopt-report-file=$qopt_file -qopt-report-phase=vec -xHost $srcfile -o $binfile
                 else
-                    icc -O$j -ipo -g -qopt-report=2 -qopt-report-file=$qopt_file -qopt-report-phase=vec gol.c -o $binfile
+                    icc -O$j -ipo -g -qopt-report=2 -qopt-report-file=$qopt_file -qopt-report-phase=vec $srcfile -o $binfile
                 fi
 
                 ./$binfile $ncols $nrows $tsteps $outfile $seed $init_prob
 
             done
         else
-            icc -O$j -ipo -g -qopt-report=2 -qopt-report-file=$qopt_file -qopt-report-phase=vec gol.c -o $binfile
+            icc -O$j -ipo -g -qopt-report=2 -qopt-report-file=$qopt_file -qopt-report-phase=vec $srcfile -o $binfile
             ./$binfile $ncols $nrows $tsteps $outfile $seed $init_prob
         fi
     done

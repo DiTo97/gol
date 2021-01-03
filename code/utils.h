@@ -4,6 +4,11 @@
 #include <getopt.h>
 #include <stdbool.h>
 #include <time.h>
+
+#ifdef _OPENMP
+#include <omp.h> // Enable OpenMP parallelization
+#endif
+
 #include "globals.h"
 
 /*********************
@@ -276,10 +281,10 @@ FILE* init_log_file(struct life_t life) {
     char buffer[100];
 
     if (life.input_file != NULL)
-        sprintf(buffer, "GoL_nc%d_nr%d_nt%d_%lu.log", life.num_cols, life.num_rows,
+        sprintf(buffer, "logs/GoL_nc%d_nr%d_nt%d_%lu.log", life.num_cols, life.num_rows,
                 life.timesteps, (unsigned long) time(NULL));
     else
-        sprintf(buffer, "GoL_nc%d_nr%d_nt%d_prob%.1f_seed%d_%lu.log", life.num_cols, life.num_rows,
+        sprintf(buffer, "logs/GoL_nc%d_nr%d_nt%d_prob%.1f_seed%d_%lu.log", life.num_cols, life.num_rows,
                 life.timesteps, life.init_prob, life.seed, (unsigned long) time(NULL));
 
     FILE *log_ptr = fopen(buffer, "a");
@@ -342,6 +347,7 @@ void malloc_grid(struct life_t *life) {
     life->grid      = (unsigned **) malloc(sizeof(unsigned *) * (ncols));
     life->next_grid = (unsigned **) malloc(sizeof(unsigned *) * (ncols));
 
+    #pragma omp parallel for private(i, j)
     for (i = 0; i < ncols; i++) {
         life->grid[i]      = (unsigned *) malloc(sizeof(unsigned) * (nrows));
         life->next_grid[i] = (unsigned *) malloc(sizeof(unsigned) * (nrows));
@@ -354,6 +360,7 @@ void malloc_grid(struct life_t *life) {
 void init_empty_grid(struct life_t *life) {
     int i, j;
   
+    #pragma omp parallel for private(i, j)
     for (i = 0; i < life->num_cols; i++)
         for (j = 0; j < life->num_rows; j++) {
             life->grid[i][j]      = DEAD;
@@ -373,8 +380,7 @@ void init_from_file(struct life_t *life, FILE *file_ptr) {
         // Every line from the file contains row/column coordinates
         // of every cell that has to be initialized as ALIVE.
         while (fscanf(file_ptr, "%d %d\n", &i, &j) != EOF) {
-            life->grid[i][j]      = ALIVE;
-            life->next_grid[i][j] = ALIVE;
+            life->grid[i][j] = ALIVE;
         }
 
     fclose(file_ptr);
@@ -384,12 +390,13 @@ void init_from_file(struct life_t *life, FILE *file_ptr) {
  * Initialize the GoL board with ALIVE values randomly.
  */
 void init_random(struct life_t *life) {
-    int x, y;
+    int i, j;
 
-    for (x = 0; x < life->num_cols; x++) 
-        for (y = 0; y < life->num_rows; y++) { 
+    #pragma omp parallel for private(i, j)
+    for (i = 0; i < life->num_cols; i++) 
+        for (j = 0; j < life->num_rows; j++) { 
             if (rand_double(0., 1.) < life->init_prob)
-                life->grid[y][x] = ALIVE;
+                life->grid[i][j] = ALIVE;
         }
 }
 

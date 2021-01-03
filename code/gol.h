@@ -1,8 +1,9 @@
 #include <stdbool.h>
 
-// All the data needed by an instance of Game of Life
+/**
+ * All the data required by a Game of Life instance.
+ */ 
 struct life_t {
-    int vis_interval;     // Display frequency of the grid (if bigger than DEFAULT_MAX_SIZE)
     int num_cols;         // Number of columns in the grid
     int num_rows;         // Number of rows in the gird
     int timesteps;        // Number of generations to simulate
@@ -19,9 +20,20 @@ struct life_t {
     char *output_file;    // Output filename
 };
 
-/* Function declarations */
-void debug(struct life_t life);
+/*********************
+ * Display functions *
+ *********************/
 
-void display(struct life_t *life, bool append);
+void display(struct life_t life, bool append);
+void get_grid_status(struct life_t life);
+void printbig(struct life_t life, bool append);
+void show(struct life_t life);
+
+/***********************
+ * Evolution functions *
+ ***********************/
+
+void cleanup(struct life_t *life);
+void evolve(struct life_t *life);
+void game(struct life_t *life);
 void initialize(struct life_t *life);
-void get_grid_status(struct life_t *life);

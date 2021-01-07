@@ -41,6 +41,30 @@ void show(struct life_t life) {
 }
 
 /**
+ * Print the current GoL board to console.
+ */
+void show_chunk(struct chunk_t chunk) {
+    int x, y;
+
+    int ncols = chunk.num_cols;
+    int nrows = chunk.num_rows;
+
+    // \033[H: Move cursor to top-left corner;
+    // \033[J: Clear console.
+    printf("\033[H\033[J");
+
+    for (x = 0; x < nrows; x++) {
+        for (y = 0; y < ncols; y++)
+            printf(chunk.chunk[y][x] ? "\033[07m  \033[m" : "  ");
+
+        printf("\033[E");
+    }
+
+    fflush(stdout);
+    usleep(160000);
+}
+
+/**
  * Print the current GoL board to file.
  * 
  * @param append    Whether to append to or to overwrite the output file.
@@ -135,6 +159,42 @@ void initialize(struct life_t *life) {
 
     #ifdef GoL_DEBUG
     debug(*life);
+    usleep(1000000);
+    #endif
+}
+
+/**
+ * Initialize all variables and structures required by GoL evolution.
+ */
+void initialize_chunk(struct chunk_t *chunk, struct life_t life, int from, int to) {
+    srand(life.seed);
+    // 2. Check if an input file was specified in the args
+    // and, in that case, update num_cols and num_rows.
+    //
+    // Use defaults, if no file is present.
+    // FILE *input_ptr = set_grid_dimens_from_file(chunk);
+
+    // 3. Allocate memory for the grid
+    malloc_chunk(chunk);
+
+    // 4. Initialize the grid with DEAD cells
+    init_empty_chunk(chunk);
+    
+    // int i, j;
+    // for (i = 0; i < chunk->num_cols + 2; i++){
+    //     for (j = 0; j < chunk->num_rows + 2; j++){
+    //         printf("rank %d printed: [%d][%d] = %d\n", chunk->rank, i, j, chunk->chunk[i][j]);
+    //     }
+    // }   
+    // 5. Initialize the grid with ALIVE cells...
+    // if (input_ptr != NULL) { // ...from file, if present...
+        // init_from_file(life, input_ptr);
+    // } else {  // ...or randomly, otherwise.
+    init_random_chunk(chunk, life, from, to);
+    // }
+
+    #ifdef GoL_DEBUG
+    // debug(*life);
     usleep(1000000);
     #endif
 }
@@ -282,9 +342,59 @@ int main(int argc, char **argv) {
     omp_set_num_threads(life.num_threads);
     #endif
 
+    // the approach of master is not the correct one, is not scallable and has 
+    // allot of dropdowsn (look readme)
+    #ifdef _MPI
+    int error, i, j, from, to, rows_per_processor;
+
+    // The MPI standard does not say what a program can do before an MPI_INIT or after an 
+    // MPI_FINALIZE. In the MPICH implementation, you should do as little as possible. 
+    // In particular, avoid anything that changes the external state of the program, 
+    // such as opening files, reading standard input or writing to standard output.
+    error = MPI_Init(&argc, &argv);
+
+    // declare the chunk structure
+    struct chunk_t chunk;
+    MPI_Status msg_status;
+
+    // get the processes info
+    MPI_Comm_size(MPI_COMM_WORLD, &chunk.size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &chunk.rank);
+
+    // calculate the number of rows that each process has to handle 
+    // handle the case in which the rows are less then the processors
+    rows_per_processor = (int) life.num_rows/chunk.size;
+
+    // printf("The row per process are %d \n", rows_per_processor);
+    // computing the begining row of each process
+    from = chunk.rank * rows_per_processor;
+
+    // printf("%d processes rows from %d\n", chunk.rank, from);
+    // computing the last row of each process
+    // handle the last chunk that could have more rows
+    to = (chunk.rank + 1) * rows_per_processor;
+    // printf("%d processes rows until %d\n", chunk.rank, to);
+
+    // define the dimension of each chunk
+    // handle the last chunk that could have more rows
+    chunk.num_rows = rows_per_processor;
+    chunk.num_cols = life.num_cols;
+
+    // initializing the chunk
+    initialize_chunk(&chunk, life, from, to);
+
+    for (i = 0; i < chunk.num_cols + 2; i++){
+        for (j = 0; j < chunk.num_rows + 2; j++){
+            printf("rank %d printed: [%d][%d] = %d\n", chunk.rank, i, j, chunk.chunk[i][j]);
+        }
+    }
+
+    error = MPI_Finalize();
+    #endif
+
     // 2. Launch the simulation
-    game(&life);
+    // game(&life);
 
     // 3. Free the memory
-    cleanup(&life);
+    // cleanup(&life);
 }

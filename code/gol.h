@@ -24,6 +24,19 @@ struct life_t {
     char *output_file;    // Output filename
 };
 
+/**
+ * Struct used by the different processes in the MPI implementation
+ */
+struct chunk_t {
+    int num_rows;                 // Number of columns in the chunk grid
+    int num_cols;                 // Number of rows in the chunk grid
+    int rank;                     // The rank of the process that uses the struct
+    int size;                     // The number of processes present in the pool
+
+    unsigned int **chunk;          // Chunk grid at the current step
+    unsigned int **next_chunk;     // Chunk grid at the next step
+};
+
 /*********************
  * Display functions *
  *********************/
@@ -41,3 +54,4 @@ void cleanup(struct life_t *life);
 void evolve(struct life_t *life);
 void game(struct life_t *life);
 void initialize(struct life_t *life);
+void initialize_chunk(struct chunk_t *chunk, struct life_t life, int from, int to);

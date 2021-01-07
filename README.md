@@ -63,6 +63,9 @@ k = {1, 2, 3}
 
 - [GoL implementation with MPI](https://github.com/freetonik/MPI-life)
 
+- [No global array](https://stackoverflow.com/questions/9269399/sending-blocks-of-2d-array-in-c-using-mpi)
+
+- [Slice matrix with scatter](https://stackoverflow.com/questions/33507024/mpi-scatter-and-gather-for-2d-matrix-in-mpi-using-c)
 #### MPI
 
 Create new data structure <code>chunk_t</code>, with:  

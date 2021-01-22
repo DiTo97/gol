@@ -54,4 +54,4 @@ void cleanup(struct life_t *life);
 void evolve(struct life_t *life);
 void game(struct life_t *life);
 void initialize(struct life_t *life);
-void initialize_chunk(struct chunk_t *chunk, struct life_t life, int from, int to);
+void initialize_chunk(struct chunk_t *chunk, struct life_t life, FILE *input_ptr, int from, int to);

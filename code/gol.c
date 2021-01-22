@@ -115,8 +115,8 @@ void get_grid_status(struct life_t life) {
 
     #pragma omp parallel for private(j) \
                 reduction(+:n_alive, n_dead)
-    for (i = 0; i < ncols; i++) 
-        for (j = 0; j < nrows; j++)
+    for (i = 0; i < nrows; i++) 
+        for (j = 0; j < ncols; j++)
             life.grid[i][j] == ALIVE ? n_alive++ : n_dead++;
     
     printf("Number of alive cells: %d\n",  n_alive);
@@ -166,32 +166,21 @@ void initialize(struct life_t *life) {
 /**
  * Initialize all variables and structures required by GoL evolution.
  */
-void initialize_chunk(struct chunk_t *chunk, struct life_t life, int from, int to) {
+void initialize_chunk(struct chunk_t *chunk, struct life_t life, FILE *input_ptr, int from, int to) {
     srand(life.seed);
-    // 2. Check if an input file was specified in the args
-    // and, in that case, update num_cols and num_rows.
-    //
-    // Use defaults, if no file is present.
-    // FILE *input_ptr = set_grid_dimens_from_file(chunk);
 
-    // 3. Allocate memory for the grid
+    // 3. Allocate memory for the chunk
     malloc_chunk(chunk);
 
-    // 4. Initialize the grid with DEAD cells
+    // 4. Initialize the chunk with DEAD cells
     init_empty_chunk(chunk);
     
-    // int i, j;
-    // for (i = 0; i < chunk->num_cols + 2; i++){
-    //     for (j = 0; j < chunk->num_rows + 2; j++){
-    //         printf("rank %d printed: [%d][%d] = %d\n", chunk->rank, i, j, chunk->chunk[i][j]);
-    //     }
-    // }   
-    // 5. Initialize the grid with ALIVE cells...
-    // if (input_ptr != NULL) { // ...from file, if present...
-        // init_from_file(life, input_ptr);
-    // } else {  // ...or randomly, otherwise.
-    init_random_chunk(chunk, life, from, to);
-    // }
+    // 5. Initialize the chunk with ALIVE cells...
+    if (input_ptr != NULL) { // ...from file, if present...
+        init_chunk_from_file(chunk, input_ptr, from, to);
+    } else {  // ...or randomly, otherwise.
+        init_random_chunk(chunk, life, from, to);
+    }
 
     #ifdef GoL_DEBUG
     // debug(*life);
@@ -217,8 +206,8 @@ void evolve(struct life_t *life) {
  
     // 1. Let every cell in the grid evolve.
     #pragma omp parallel for private(alive_neighbs, x, i, j, r, c)
-    for (y = 0; y < ncols; y++) 
-        for (x = 0; x < nrows; x++) {
+    for (y = 0; y < nrows; y++) 
+        for (x = 0; x < ncols; x++) {
             alive_neighbs = 0;
 
             // 1.a Check the 3x3 neighbourhood
@@ -229,8 +218,8 @@ void evolve(struct life_t *life) {
                     // Remember that the board represents an hypothetically infinite world. In order to do that,
                     // it has to be modelled as a circular matrix, with cells along outer borders considered adjacent to one another.
                     // By applying the modulo operator, %, we account for this possibility. 
-                    c = (i + ncols) % ncols;
-                    r = (j + nrows) % nrows;
+                    c = (i + nrows) % nrows;
+                    r = (j + ncols) % ncols;
 
                     if (!(i == y && j == x) // Skip the current cell (x, y)
                             && life->grid[c][r] == ALIVE)
@@ -247,8 +236,8 @@ void evolve(struct life_t *life) {
 
     // 2. Replace the old grid with the updated one.
     #pragma omp parallel for private(x)
-    for (y = 0; y < ncols; y++) 
-        for (x = 0; x < nrows; x++) 
+    for (y = 0; y < nrows; y++) 
+        for (x = 0; x < ncols; x++) 
             life->grid[y][x] = life->next_grid[y][x];
 }
 
@@ -316,10 +305,10 @@ void game(struct life_t *life) {
 
 void cleanup(struct life_t *life) {
     int i;
-    int ncols = life->num_cols;
+    int nrows = life->num_rows;
 
     #pragma omp parallel for
-    for (i = 0; i < ncols; i++) {
+    for (i = 0; i < nrows; i++) {
         free(life->grid[i]);
         free(life->next_grid[i]);
     }
@@ -342,15 +331,13 @@ int main(int argc, char **argv) {
     omp_set_num_threads(life.num_threads);
     #endif
 
-    // the approach of master is not the correct one, is not scallable and has 
-    // allot of dropdowsn (look readme)
+    // reading the file if present and setting life dimensions
+    FILE *input_ptr = set_grid_dimens_from_file(&life);
+
     #ifdef _MPI
     int error, i, j, from, to, rows_per_processor;
 
-    // The MPI standard does not say what a program can do before an MPI_INIT or after an 
-    // MPI_FINALIZE. In the MPICH implementation, you should do as little as possible. 
-    // In particular, avoid anything that changes the external state of the program, 
-    // such as opening files, reading standard input or writing to standard output.
+    // the documentation says that only fortran returns an error???????
     error = MPI_Init(&argc, &argv);
 
     // declare the chunk structure
@@ -362,29 +349,29 @@ int main(int argc, char **argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &chunk.rank);
 
     // calculate the number of rows that each process has to handle 
-    // handle the case in which the rows are less then the processors
     rows_per_processor = (int) life.num_rows/chunk.size;
 
-    // printf("The row per process are %d \n", rows_per_processor);
     // computing the begining row of each process
     from = chunk.rank * rows_per_processor;
 
-    // printf("%d processes rows from %d\n", chunk.rank, from);
     // computing the last row of each process
-    // handle the last chunk that could have more rows
-    to = (chunk.rank + 1) * rows_per_processor;
-    // printf("%d processes rows until %d\n", chunk.rank, to);
+    // controlling if I'm the last process then I get all the remaining rows
+    if (chunk.rank == chunk.size - 1){
+        to = life.num_rows - 1;
+        chunk.num_rows = life.num_rows - from;
+    } else{
+        to = (chunk.rank + 1) * rows_per_processor - 1;
+        chunk.num_rows = rows_per_processor;
+    }
 
     // define the dimension of each chunk
-    // handle the last chunk that could have more rows
-    chunk.num_rows = rows_per_processor;
     chunk.num_cols = life.num_cols;
 
     // initializing the chunk
-    initialize_chunk(&chunk, life, from, to);
+    initialize_chunk(&chunk, life, input_ptr, from, to);
 
-    for (i = 0; i < chunk.num_cols + 2; i++){
-        for (j = 0; j < chunk.num_rows + 2; j++){
+    for (i = 0; i < chunk.num_rows + 2; i++){
+        for (j = 0; j < chunk.num_cols; j++){
             printf("rank %d printed: [%d][%d] = %d\n", chunk.rank, i, j, chunk.chunk[i][j]);
         }
     }

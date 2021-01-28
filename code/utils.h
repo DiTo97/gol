@@ -25,7 +25,7 @@
  * Parsing functions *
  *********************/  
 
-static const char *short_opts = "c:r:t:i:s::n:o:p:h?";
+static const char *short_opts = "c:r:t:i:s:n:o:p:h?";
 static const struct option long_opts[] = {
     { "columns", required_argument, NULL, 'c' },
     { "rows", required_argument, NULL, 'r' },
@@ -35,7 +35,7 @@ static const struct option long_opts[] = {
     #ifdef _OPENMP
     { "nthreads", required_argument, NULL, 'n' },
     #endif
-    { "seed", optional_argument, NULL, 's' },
+    { "seed", required_argument, NULL, 's' },
     { "init_prob", required_argument, NULL, 'p' },
     { "help", no_argument, NULL, 'h' },
     { NULL, no_argument, NULL, 0 }
@@ -538,15 +538,15 @@ void init_from_file(struct life_t *life, FILE *file_ptr) {
  * 
  * @param file_ptr    The pointer to the open input file.
  */
-void init_chunk_from_file(struct chunk_t *chunk, FILE *file_ptr, int from, int to) {
+void init_chunk_from_file(struct chunk_t *chunk, unsigned int num_rows, FILE *file_ptr, int from, int to) {
     int i, j, m, n;
 
     // Every line from the file contains row/column coordinates
     // of every cell that has to be initialized as ALIVE.
     // here we have to read all the file, is necessary because is not ordered
     while (fscanf(file_ptr, "%d %d\n", &i, &j) != EOF) {
-        m = (from - 1 + life.num_rows) % life.num_rows;
-        n = (to + 1) % life.num_rows;
+        m = (from - 1 + num_rows) % num_rows;
+        n = (to + 1) % num_rows;
 
         // m = 9, n = 3, 0, 1, 2
         // assigning the rows that actually belong to the chunk

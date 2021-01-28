@@ -1,10 +1,10 @@
 #ifndef GoL_GLOBALS_H
 #define GoL_GLOBALS_H 
 
-const int DEFAULT_TIMESTEPS = 1000;
+const int DEFAULT_TIMESTEPS = 20;
 
-const int DEFAULT_SIZE_ROWS = 100;
-const int DEFAULT_SIZE_COLS = 100;
+const int DEFAULT_SIZE_ROWS = 10;
+const int DEFAULT_SIZE_COLS = 10;
 
 const float DEFAULT_INIT_PROB = 0.5;
 
@@ -27,5 +27,10 @@ enum {
     DEAD  = 0,
     ALIVE = 1
 };
+
+enum TAGS{
+    TOP,
+    BOTTOM
+}
 
 #endif

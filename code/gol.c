@@ -177,7 +177,7 @@ void initialize_chunk(struct chunk_t *chunk, struct life_t life, FILE *input_ptr
     
     // 5. Initialize the chunk with ALIVE cells...
     if (input_ptr != NULL) { // ...from file, if present...
-        init_chunk_from_file(chunk, input_ptr, from, to);
+        init_chunk_from_file(chunk, life.num_rows, input_ptr, from, to);
     } else {  // ...or randomly, otherwise.
         init_random_chunk(chunk, life, from, to);
     }
@@ -249,6 +249,7 @@ void game(struct life_t *life) {
 
     struct timeval start, end;
     
+    // initializing the whole matrix only if not running with MPI
     initialize(life);
 
     int ncols = life->num_cols;
@@ -317,12 +318,96 @@ void cleanup(struct life_t *life) {
     free(life->next_grid);
 }
 
+void evolve_chunk(struct chunk_t *chunk){
+    int x, y, i, j, r, c;
+
+    int alive_neighbs; // Number of alive neighbours
+
+    int ncols = chunk->num_cols;
+    int nrows = chunk->num_rows;
+ 
+    // 1. Let every cell in the grid evolve.
+    #pragma omp parallel for private(alive_neighbs, x, i, j, r, c)
+    for (x = 1; x < nrows + 1; x++) 
+        for (y = 0; y < ncols; y++) {
+            alive_neighbs = 0;
+
+            // 1.a Check the 3x3 neighbourhood
+            for (i = x - 1; i <= x + 1; i++)
+                for (j = y - 1; j <= y + 1; j++) {
+                    // Compute the actual row/col coordinates in the GoL board.
+                    //
+                    // Remember that the board represents an hypothetically infinite world. In order to do that,
+                    // it has to be modelled as a circular matrix, with cells along outer borders considered adjacent to one another.
+                    // By applying the modulo operator, %, we account for this possibility. 
+                    c = (j + ncols) % ncols;
+
+                    if (!(i == x && j == y) // Skip the current cell (x, y)
+                            && chunk->chunk[i][c] == ALIVE)
+                        alive_neighbs++;
+                }
+
+            // 1.b Apply GoL rules to determine the cell's state
+            if (alive_neighbs == 3
+                    || (alive_neighbs == 2 && chunk->chunk[x][y] == ALIVE))
+                chunk->next_chunk[x][y] = ALIVE;
+            else
+                chunk->next_chunk[x][y] = DEAD;
+        }
+
+    // 2. Replace the old grid with the updated one.
+    #pragma omp parallel for private(x)
+    for (x = 1; x < nrows + 1; x++) 
+        for (y = 0; y < ncols; y++) 
+            chunk->chunk[x][y] = chunk->next_chunk[x][y];
+}
+
+void game_chunk(struct chunk_t *chunk, int timesteps, bool big){
+    int i;
+    MPI_Status status;
+
+    for (i = 0; i < timesteps; i++){
+        evolve_chunk(chunk);
+
+        if(big) {
+            // print the time for generation
+
+        }else{
+            if (chunk->rank == 0) {
+                MPI_Recv();
+            } else{
+                MPI_Send();
+            }
+        }
+
+        int prev_rank = (chunk->rank - 1 + chunk->size) % chunk->size;
+        int next_rank = (chunk->rank + 1) % chunk->size;
+        int n_rows = chunk->num_rows + 1;
+
+        // fixme processes with different number of rows
+        if (prev_rank == chunk->size - 1) {
+            n_rows += chunk->displacement;
+        }
+
+        MPI_Sendrecv(chunk[0], chunk->num_cols, MPI_INT, prev_rank, TOP,
+                chunk[n_rows], chunk->num_cols, MPI_INT, chunk->rank, BOTTOM,
+                MPI_COMM_WORLD, &status);
+
+        MPI_Sendrecv(chunk[chunk->num_rows + 1], chunk->num_cols, MPI_INT, next_rank,
+            BOTTOM, chunk[0], chunk->num_cols, MPI_INT, chunk->rank,
+            TOP, MPI_COMM_WORLD, &status);
+    }
+}
+
 /************************************
  * ================================ *
  ************************************/
 
 int main(int argc, char **argv) {
     struct life_t life;
+    struct timeval start, end;
+
+    gettimeofday(&start, NULL);
 
     // 1. Initialize vars from args
     parse_args(&life, argc, argv);
@@ -348,40 +433,66 @@ int main(int argc, char **argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &chunk.size);
     MPI_Comm_rank(MPI_COMM_WORLD, &chunk.rank);
 
-    // calculate the number of rows that each process has to handle 
-    rows_per_processor = (int) life.num_rows/chunk.size;
+    if(chunk.size != 1){
+        MPI_Barrier(MPI_COMM_WORLD);
 
-    // computing the begining row of each process
-    from = chunk.rank * rows_per_processor;
+        // calculate the number of rows that each process has to handle 
+        rows_per_processor = (int) life.num_rows/chunk.size;
+        chunk.displacement = life.num_rows % chunk.size;
 
-    // computing the last row of each process
-    // controlling if I'm the last process then I get all the remaining rows
-    if (chunk.rank == chunk.size - 1){
-        to = life.num_rows - 1;
-        chunk.num_rows = life.num_rows - from;
-    } else{
-        to = (chunk.rank + 1) * rows_per_processor - 1;
-        chunk.num_rows = rows_per_processor;
-    }
+        // computing the begining row of each process
+        from = chunk.rank * rows_per_processor;
 
-    // define the dimension of each chunk
-    chunk.num_cols = life.num_cols;
-
-    // initializing the chunk
-    initialize_chunk(&chunk, life, input_ptr, from, to);
-
-    for (i = 0; i < chunk.num_rows + 2; i++){
-        for (j = 0; j < chunk.num_cols; j++){
-            printf("rank %d printed: [%d][%d] = %d\n", chunk.rank, i, j, chunk.chunk[i][j]);
+        // computing the last row of each process
+        // controlling if I'm the last process then I get all the remaining rows
+        if (chunk.rank == chunk.size - 1){
+            to = life.num_rows - 1;
+            chunk.num_rows = life.num_rows - from;
+        } else{
+            to = (chunk.rank + 1) * rows_per_processor - 1;
+            chunk.num_rows = rows_per_processor;
         }
+
+        // define the dimension of each chunk
+        chunk.num_cols = life.num_cols;
+
+        // initializing the chunk
+        initialize_chunk(&chunk, life, input_ptr, from, to);
+
+        for (i = 0; i < chunk.num_rows + 2; i++){
+            for (j = 0; j < chunk.num_cols; j++){
+                printf("rank %d printed: [%d][%d] = %d\n", chunk.rank, i, j, chunk.chunk[i][j]);
+            }
+        }
+
+        game_chunk(&chunk, life.timesteps, is_big(life));
+
+        MPI_Barrier(MPI_COMM_WORLD);
+        if(chunk.rank == 0){
+            gettimeofday(&end, NULL);
+            printf("The execurion time is: %d\n", elapsed_wtime(start, end));
+        }
+    }else{
+        // 2. Launch the simulation
+        game(&life);
+
+        // 3. Free the memory
+        cleanup(&life);
+        gettimeofday(&end, NULL);
+        printf("The execurion time is: %d\n", elapsed_wtime(start, end));
     }
 
     error = MPI_Finalize();
-    #endif
 
+    #else
     // 2. Launch the simulation
-    // game(&life);
+    game(&life);
 
     // 3. Free the memory
-    // cleanup(&life);
+    cleanup(&life);
+
+    gettimeofday(&end, NULL);
+    printf("The total execurion time in sequential case is: %d", elapsed_wtime(start, end));
+
+    #endif
 }

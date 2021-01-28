@@ -32,6 +32,7 @@ struct chunk_t {
     int num_cols;                 // Number of rows in the chunk grid
     int rank;                     // The rank of the process that uses the struct
     int size;                     // The number of processes present in the pool
+    int displacement;             // The number of leftover rows assigned to the last process
 
     unsigned int **chunk;          // Chunk grid at the current step
     unsigned int **next_chunk;     // Chunk grid at the next step

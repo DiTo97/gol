@@ -58,6 +58,7 @@ k = {1, 2, 3}
 - Enable MPI support and account for ghost rows.
 
 - Add write_grid() to printbig().
+- Update write_grid() with row/col values in the first row
 
 - [How to measure elapsed wall-clock time?](https://stackoverflow.com/questions/12392278/measure-time-in-linux-time-vs-clock-vs-getrusage-vs-clock-gettime-vs-gettimeof)
 

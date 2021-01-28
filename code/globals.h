@@ -3,8 +3,8 @@
 
 const int DEFAULT_TIMESTEPS = 20;
 
-const int DEFAULT_SIZE_ROWS = 10;
-const int DEFAULT_SIZE_COLS = 10;
+const int DEFAULT_SIZE_ROWS = 100;
+const int DEFAULT_SIZE_COLS = 100;
 
 const float DEFAULT_INIT_PROB = 0.5;
 
@@ -28,9 +28,10 @@ enum {
     ALIVE = 1
 };
 
-enum TAGS{
+enum TAGS {
     TOP,
-    BOTTOM
-}
+    BOTTOM,
+    PRINT
+};
 
 #endif

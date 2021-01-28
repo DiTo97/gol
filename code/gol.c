@@ -31,7 +31,7 @@ void show(struct life_t life) {
 
     for (x = 0; x < nrows; x++) {
         for (y = 0; y < ncols; y++)
-            printf(life.grid[y][x] ? "\033[07m  \033[m" : "  ");
+            printf(life.grid[x][y] ? "\033[07m  \033[m" : "  ");
 
         printf("\033[E");
     }
@@ -53,15 +53,26 @@ void show_chunk(struct chunk_t chunk) {
     // \033[J: Clear console.
     printf("\033[H\033[J");
 
-    for (x = 0; x < nrows; x++) {
+    for (x = 1; x < nrows + 1; x++) {
         for (y = 0; y < ncols; y++)
-            printf(chunk.chunk[y][x] ? "\033[07m  \033[m" : "  ");
+            printf(chunk.chunk[x][y] ? "\033[07m  \033[m" : "  ");
 
         printf("\033[E");
     }
+}
 
-    fflush(stdout);
-    usleep(160000);
+/**
+ * Print the current GoL board to console.
+ */
+void show_buffer(int ncols, int nrows, unsigned int *buffer) {
+    int x, y;
+
+    for (x = 0; x < nrows; x++) {
+        for (y = 0; y < ncols; y++)
+            printf(*((buffer + x*ncols) + y) ? "\033[07m  \033[m" : "  ");
+
+        printf("\033[E");
+    }
 }
 
 /**
@@ -318,6 +329,7 @@ void cleanup(struct life_t *life) {
     free(life->next_grid);
 }
 
+#ifdef GoL_MPI
 void evolve_chunk(struct chunk_t *chunk){
     int x, y, i, j, r, c;
 
@@ -327,7 +339,7 @@ void evolve_chunk(struct chunk_t *chunk){
     int nrows = chunk->num_rows;
  
     // 1. Let every cell in the grid evolve.
-    #pragma omp parallel for private(alive_neighbs, x, i, j, r, c)
+    #pragma omp parallel for private(alive_neighbs, y, i, j, r, c)
     for (x = 1; x < nrows + 1; x++) 
         for (y = 0; y < ncols; y++) {
             alive_neighbs = 0;
@@ -362,42 +374,115 @@ void evolve_chunk(struct chunk_t *chunk){
             chunk->chunk[x][y] = chunk->next_chunk[x][y];
 }
 
+void display_chunk(struct chunk_t *chunk) {
+    if (chunk->rank == 0) {
+        int r;
+        MPI_Status status;
+
+        // 1. Print its chunk
+        show_chunk(*chunk);
+
+        int nrows = chunk->num_rows;
+        int ncols = chunk->num_cols;
+
+        unsigned int buffer[nrows + chunk->displacement][ncols];
+
+        int j, k;
+
+        for (j = 0; j < nrows + chunk->displacement; j++)
+            for(k = 0; k < ncols; k++)
+                buffer[j][k] = DEAD;
+
+        // 2. Collect and print other processes'
+        for (r = 1; r < chunk->size; r++) {
+            MPI_Recv(&buffer[0][0], (nrows + chunk->displacement) * ncols,
+                        MPI_INT, r, PRINT, MPI_COMM_WORLD, &status);
+
+            int rrows = (r == chunk->size - 1) \
+                        ? nrows + chunk->displacement \
+                        : nrows;
+
+            show_buffer(ncols, rrows, &buffer[0][0]);
+
+            // printf("%d %d\n", rrows, ncols);
+
+            // for (j = 0; j < rrows; j++) {
+            //     for(k = 0; k < ncols; k++)
+            //         printf(buffer[j][k] == ALIVE ? "X" : " ");
+
+            //     printf("\n");
+            // }
+        }
+
+        // 3. Flush buffer to stdout
+        fflush(stdout);
+    } else{
+        MPI_Send(&chunk->chunk[1][0], chunk->num_rows * chunk->num_cols,
+                    MPI_INT, 0, PRINT, MPI_COMM_WORLD);
+    }
+
+    usleep(160000);
+}
+
 void game_chunk(struct chunk_t *chunk, int timesteps, bool big){
     int i;
     MPI_Status status;
 
+    struct timeval gstart, gend;
+
+    if (!big)
+        display_chunk(chunk);
+
     for (i = 0; i < timesteps; i++){
+        if (chunk->rank == 0)
+            // Track the start time
+            gettimeofday(&gstart, NULL);
+
+        // Let the current chunk evolve
         evolve_chunk(chunk);
 
-        if(big) {
-            // print the time for generation
+        if (chunk->rank == 0)
+            // Track the end time
+            gettimeofday(&gend, NULL);
 
-        }else{
+        if(big) {
             if (chunk->rank == 0) {
-                MPI_Recv();
-            } else{
-                MPI_Send();
+                double cur_gtime = elapsed_wtime(gstart, gend);
+                printf("Generation #%d took %.5f ms on process 0\n", i, cur_gtime);  
             }
+        }else{
+            display_chunk(chunk);
         }
 
         int prev_rank = (chunk->rank - 1 + chunk->size) % chunk->size;
         int next_rank = (chunk->rank + 1) % chunk->size;
-        int n_rows = chunk->num_rows + 1;
 
-        // fixme processes with different number of rows
-        if (prev_rank == chunk->size - 1) {
-            n_rows += chunk->displacement;
-        }
+        // int recv_rows = chunk->num_rows + 1;
 
-        MPI_Sendrecv(chunk[0], chunk->num_cols, MPI_INT, prev_rank, TOP,
-                chunk[n_rows], chunk->num_cols, MPI_INT, chunk->rank, BOTTOM,
-                MPI_COMM_WORLD, &status);
+        // if (prev_rank == chunk->size - 1) {
+        //     recv_rows += chunk->displacement;
+        // }
 
-        MPI_Sendrecv(chunk[chunk->num_rows + 1], chunk->num_cols, MPI_INT, next_rank,
-            BOTTOM, chunk[0], chunk->num_cols, MPI_INT, chunk->rank,
-            TOP, MPI_COMM_WORLD, &status);
+        MPI_Sendrecv(&chunk->chunk[1][0], chunk->num_cols, MPI_INT, prev_rank, TOP,
+                     &chunk->chunk[chunk->num_rows + 1][0], chunk->num_cols, MPI_INT, next_rank, TOP,
+                     MPI_COMM_WORLD, &status);
+
+        MPI_Sendrecv(&chunk->chunk[chunk->num_rows][0], chunk->num_cols, MPI_INT, next_rank, BOTTOM,
+                     &chunk->chunk[0][0], chunk->num_cols, MPI_INT, prev_rank, BOTTOM,
+                     MPI_COMM_WORLD, &status);
     }
 }
+
+void debug_chunk(struct chunk_t chunk) {
+    printf("Number of cols: %d\n", chunk.num_cols);
+    printf("Number of rows: %d\n", chunk.num_rows);
+    printf("Rank: %d\n", chunk.rank);
+    printf("Communicator size: %d\n", chunk.size);
+    printf("Rows displacement: %d\n", chunk.displacement);
+
+    fflush(stdout);
+}
+#endif
 
 /************************************
  * ================================ *
@@ -419,7 +504,7 @@ int main(int argc, char **argv) {
     // reading the file if present and setting life dimensions
     FILE *input_ptr = set_grid_dimens_from_file(&life);
 
-    #ifdef _MPI
+    #ifdef GoL_MPI
     int error, i, j, from, to, rows_per_processor;
 
     // the documentation says that only fortran returns an error???????
@@ -453,24 +538,31 @@ int main(int argc, char **argv) {
             chunk.num_rows = rows_per_processor;
         }
 
+
+        // from = 0;
+        // to = 1;
+
         // define the dimension of each chunk
         chunk.num_cols = life.num_cols;
 
         // initializing the chunk
         initialize_chunk(&chunk, life, input_ptr, from, to);
 
-        for (i = 0; i < chunk.num_rows + 2; i++){
-            for (j = 0; j < chunk.num_cols; j++){
-                printf("rank %d printed: [%d][%d] = %d\n", chunk.rank, i, j, chunk.chunk[i][j]);
-            }
-        }
-
         game_chunk(&chunk, life.timesteps, is_big(life));
 
+        // debug_chunk(chunk);
+
         MPI_Barrier(MPI_COMM_WORLD);
+        // printf("Processor %d: %d, %d\n", chunk.rank, from, to);
+
+
+        // if (chunk.rank == 1)
+        //     usleep(1000);
+
+        // show_chunk(chunk);
         if(chunk.rank == 0){
             gettimeofday(&end, NULL);
-            printf("The execurion time is: %d\n", elapsed_wtime(start, end));
+            printf("The execurion time is %.5f ms\n", elapsed_wtime(start, end));
         }
     }else{
         // 2. Launch the simulation
@@ -479,7 +571,7 @@ int main(int argc, char **argv) {
         // 3. Free the memory
         cleanup(&life);
         gettimeofday(&end, NULL);
-        printf("The execurion time is: %d\n", elapsed_wtime(start, end));
+        printf("The execurion time is %.5f ms\n", elapsed_wtime(start, end));
     }
 
     error = MPI_Finalize();
@@ -492,7 +584,7 @@ int main(int argc, char **argv) {
     cleanup(&life);
 
     gettimeofday(&end, NULL);
-    printf("The total execurion time in sequential case is: %d", elapsed_wtime(start, end));
+    printf("The total execurion time in sequential case is %.5f ms", elapsed_wtime(start, end));
 
     #endif
 }

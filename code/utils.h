@@ -9,7 +9,7 @@
 #include <omp.h> // Enable OpenMP parallelization
 #endif
 
-#ifdef _MPI
+#ifdef GoL_MPI
 #include <mpi.h> // Enable MPI parallelization
 #endif
 
@@ -442,14 +442,14 @@ void malloc_grid(struct life_t *life) {
     int ncols = life->num_cols;
     int nrows = life->num_rows;
 
-    life->grid      = (unsigned **) malloc(sizeof(unsigned *) * (nrows + 2));
-    life->next_grid = (unsigned **) malloc(sizeof(unsigned *) * (nrows + 2));
+    life->grid      = (unsigned **) malloc(sizeof(unsigned *) * nrows);
+    life->next_grid = (unsigned **) malloc(sizeof(unsigned *) * nrows);
 
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
     
-    for (i = 0; i < ncols; i++) {
+    for (i = 0; i < nrows; i++) {
         life->grid[i]      = (unsigned *) malloc(sizeof(unsigned) * (ncols));
         life->next_grid[i] = (unsigned *) malloc(sizeof(unsigned) * (ncols));
     }
@@ -467,16 +467,17 @@ void malloc_chunk(struct chunk_t *chunk) {
     int ncols = chunk->num_cols;
     int nrows = chunk->num_rows;
 
+    int *data = (unsigned *) malloc((nrows + 2) * ncols * sizeof(unsigned *)); // Guarantee continuous blocks of memory
+
     chunk->chunk      = (unsigned **) malloc(sizeof(unsigned *) * (nrows + 2));
     chunk->next_chunk = (unsigned **) malloc(sizeof(unsigned *) * (nrows + 2));
 
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
-
     // we don't need two extra columns because each process already has the neighboor columns
-    for (i = 0; i < ncols; i++) {
-        chunk->chunk[i]      = (unsigned *) malloc(sizeof(unsigned) * ncols);
+    for (i = 0; i < nrows + 2; i++) {
+        chunk->chunk[i]      = &(data[ncols * i]);
         chunk->next_chunk[i] = (unsigned *) malloc(sizeof(unsigned) * ncols);
     }
 }
@@ -585,7 +586,9 @@ void init_random_chunk(struct chunk_t *chunk, struct life_t life, int from, int 
     // loop through the grid matrix and generate all the random values
     for (i = 0; i < life.num_rows; i++) {
         for (j = 0; j < life.num_cols; j++) { 
-            if (rand_double(0., 1.) < life.init_prob){
+            float f = rand_double(0., 1.);    
+
+            if (f < life.init_prob){
                 m = (from - 1 + life.num_rows) % life.num_rows;
                 n = (to + 1) % life.num_rows;
 

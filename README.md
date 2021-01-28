@@ -14,7 +14,7 @@ Comparative analysis of possible parallel implementations of Conway's famous [Ga
 - [A Performance Analysis of GoL](https://arxiv.org/pdf/1209.4408.pdf)
 - [What is a Dwarf in HPC?](https://www5.in.tum.de/lehre/vorlesungen/hpc/WS15/structured.pdf)
 
-<!-- TODO: Specify the input file format -->
+<!-- TODO: Specify the input file CSO format -->
 
 ## Useful information
 
@@ -50,15 +50,12 @@ k = {1, 2, 3}
 
 ### TODOs
 
-- Create a Makefile to run.
+- Update Makefile with MPI flags.
 
-- Add a function to dump the grid to file sticking to the input format.
 - Add MPI or CUDA support to log filenames.
   
-- Enable MPI support and account for ghost rows.
-
-- Add write_grid() to printbig().
-- Update write_grid() with row/col values in the first row
+- Add write_grid() to printbig() to save the grid in CSO format.
+- Update write_grid() with row/col values in the first row.
 
 - [How to measure elapsed wall-clock time?](https://stackoverflow.com/questions/12392278/measure-time-in-linux-time-vs-clock-vs-getrusage-vs-clock-gettime-vs-gettimeof)
 
@@ -67,27 +64,8 @@ k = {1, 2, 3}
 - [No global array](https://stackoverflow.com/questions/9269399/sending-blocks-of-2d-array-in-c-using-mpi)
 
 - [Slice matrix with scatter](https://stackoverflow.com/questions/33507024/mpi-scatter-and-gather-for-2d-matrix-in-mpi-using-c)
+
 #### MPI
-
-Create new data structure <code>chunk_t</code>, with:  
-<code>
-
-    int num_rows;
-    int num_cols;
-
-    int rank;
-    int size;
-
-    #ifdef _OPENMP
-    int num_threads;
-    #endif
-
-    unsigned int **chunk;
-    unisgned int **next_chunk;
-    
-</code>  
-
--DGoL_MPI ---> #ifdef GoL_MPI  
 
 1. Master parses arguments and creates life_t structure
 2. Master gets number of processes and comm size from MPI

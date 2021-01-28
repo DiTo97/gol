@@ -3,8 +3,8 @@
 
 const int DEFAULT_TIMESTEPS = 1000;
 
-const int DEFAULT_SIZE_ROWS = 30;
-const int DEFAULT_SIZE_COLS = 30;
+const int DEFAULT_SIZE_ROWS = 100;
+const int DEFAULT_SIZE_COLS = 100;
 
 const float DEFAULT_INIT_PROB = 0.5;
 

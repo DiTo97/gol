@@ -9,6 +9,10 @@
 #include <omp.h> // Enable OpenMP parallelization
 #endif
 
+#ifdef _MPI
+#include <mpi.h> // Enable MPI parallelization
+#endif
+
 #ifdef GoL_DEBUG
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -411,6 +415,7 @@ void log_data(FILE *log_ptr, int timestep, double cur_time, double tot_time) {
 FILE* set_grid_dimens_from_file(struct life_t *life) {
     FILE *file_ptr;
 
+    // what we do here if the file is not present or is not with the right format
     if (life->input_file != NULL) {
         if ((file_ptr = fopen(life->input_file, "r")) == NULL) {
             perror("[*] Failed to open the input file.\n");
@@ -428,7 +433,7 @@ FILE* set_grid_dimens_from_file(struct life_t *life) {
 
 /**
  * Allocate memory for the current and next GoL board.
- * 
+ *
  * @todo Account for ghost rows (+ 2) with MPI.
  */
 void malloc_grid(struct life_t *life) {
@@ -437,13 +442,42 @@ void malloc_grid(struct life_t *life) {
     int ncols = life->num_cols;
     int nrows = life->num_rows;
 
-    life->grid      = (unsigned **) malloc(sizeof(unsigned *) * (ncols));
-    life->next_grid = (unsigned **) malloc(sizeof(unsigned *) * (ncols));
+    life->grid      = (unsigned **) malloc(sizeof(unsigned *) * (nrows + 2));
+    life->next_grid = (unsigned **) malloc(sizeof(unsigned *) * (nrows + 2));
 
+    #ifdef _OPENMP
     #pragma omp parallel for
+    #endif
+    
     for (i = 0; i < ncols; i++) {
-        life->grid[i]      = (unsigned *) malloc(sizeof(unsigned) * (nrows));
-        life->next_grid[i] = (unsigned *) malloc(sizeof(unsigned) * (nrows));
+        life->grid[i]      = (unsigned *) malloc(sizeof(unsigned) * (ncols));
+        life->next_grid[i] = (unsigned *) malloc(sizeof(unsigned) * (ncols));
+    }
+}
+
+/**
+ * Allocate memory for the current and next GoL chunk of board.
+ * 
+ * @todo This could be done in the above malloc_grid by unsing the union inside a 
+ *       generic struct
+ */
+void malloc_chunk(struct chunk_t *chunk) {
+    int i;
+
+    int ncols = chunk->num_cols;
+    int nrows = chunk->num_rows;
+
+    chunk->chunk      = (unsigned **) malloc(sizeof(unsigned *) * (nrows + 2));
+    chunk->next_chunk = (unsigned **) malloc(sizeof(unsigned *) * (nrows + 2));
+
+    #ifdef _OPENMP
+    #pragma omp parallel for
+    #endif
+
+    // we don't need two extra columns because each process already has the neighboor columns
+    for (i = 0; i < ncols; i++) {
+        chunk->chunk[i]      = (unsigned *) malloc(sizeof(unsigned) * ncols);
+        chunk->next_chunk[i] = (unsigned *) malloc(sizeof(unsigned) * ncols);
     }
 }
 
@@ -453,11 +487,29 @@ void malloc_grid(struct life_t *life) {
 void init_empty_grid(struct life_t *life) {
     int i, j;
   
+    #ifdef _OPENMP
     #pragma omp parallel for private(j)
-    for (i = 0; i < life->num_cols; i++)
-        for (j = 0; j < life->num_rows; j++) {
+    #endif
+    for (i = 0; i < life->num_rows; i++)
+        for (j = 0; j < life->num_cols; j++) {
             life->grid[i][j]      = DEAD;
             life->next_grid[i][j] = DEAD;
+        }
+}
+
+/**
+ * Initialize the GoL board with DEAD values.
+ */
+void init_empty_chunk(struct chunk_t *chunk) {
+    int i, j;
+  
+    #ifdef _OPENMP
+    #pragma omp parallel for private(j)
+    #endif
+    for (i = 0; i < chunk->num_rows + 2; i++)
+        for (j = 0; j < chunk->num_cols; j++) {
+            chunk->chunk[i][j]      = DEAD;
+            chunk->next_chunk[i][j] = DEAD;
         }
 }
 
@@ -469,6 +521,8 @@ void init_empty_grid(struct life_t *life) {
 void init_from_file(struct life_t *life, FILE *file_ptr) {
     int i, j;
 
+    // this if is not necessary, I cannot call this funciton if 
+    // life->input_file is NULL
     if(life->input_file != NULL)
         // Every line from the file contains row/column coordinates
         // of every cell that has to be initialized as ALIVE.
@@ -480,16 +534,79 @@ void init_from_file(struct life_t *life, FILE *file_ptr) {
 }
 
 /**
- * Initialize the GoL board with ALIVE values randomly.
+ * Initialize the chunk with ALIVE values from file.
+ * 
+ * @param file_ptr    The pointer to the open input file.
+ */
+void init_chunk_from_file(struct chunk_t *chunk, FILE *file_ptr, int from, int to) {
+    int i, j, m, n;
+
+    // Every line from the file contains row/column coordinates
+    // of every cell that has to be initialized as ALIVE.
+    // here we have to read all the file, is necessary because is not ordered
+    while (fscanf(file_ptr, "%d %d\n", &i, &j) != EOF) {
+        m = (from - 1 + life.num_rows) % life.num_rows;
+        n = (to + 1) % life.num_rows;
+
+        // m = 9, n = 3, 0, 1, 2
+        // assigning the rows that actually belong to the chunk
+        if (i >= from <= to){
+            chunk->chunk[i - from + 1][j] = ALIVE;
+        } else if( i == m ){
+            chunk->chunk[0][j] = ALIVE;
+        } else if( i == n ){
+            chunk->chunk[chunk->num_rows + 1][j] = ALIVE;
+        }
+    }
+
+    fclose(file_ptr);
+}
+
+/**
+ * Initialize the GoL board with ALIVE values randomly
  */
 void init_random(struct life_t *life) {
     int i, j;
 
-    for (i = 0; i < life->num_cols; i++) 
-        for (j = 0; j < life->num_rows; j++) { 
+    for (i = 0; i < life->num_rows; i++) 
+        for (j = 0; j < life->num_cols; j++) { 
             if (rand_double(0., 1.) < life->init_prob)
                 life->grid[i][j] = ALIVE;
         }
+}
+
+/**
+ * Initialize the GoL board with ALIVE values randomly.
+ */
+void init_random_chunk(struct chunk_t *chunk, struct life_t life, int from, int to) {
+    int i, j, m, n;
+    bool grow_top = false;
+
+    // loop through the grid matrix and generate all the random values
+    for (i = 0; i < life.num_rows; i++) {
+        for (j = 0; j < life.num_cols; j++) { 
+            if (rand_double(0., 1.) < life.init_prob){
+                m = (from - 1 + life.num_rows) % life.num_rows;
+                n = (to + 1) % life.num_rows;
+
+                // m = 9, n = 3, 0, 1, 2
+                // assigning the rows that actually belong to the chunk
+                if (i >= from  && i <= to){
+                    chunk->chunk[i - from + 1][j] = ALIVE;
+                } else if( i == m ){
+                    chunk->chunk[0][j] = ALIVE;
+                    grow_top = true;
+                } else if( i == n ){
+                    chunk->chunk[chunk->num_rows + 1][j] = ALIVE;
+                }
+            }
+        }
+
+        // control if I processed all the elements
+        if ( i > to && grow_top ){
+            break;
+        }
+    } 
 }
 
 /*****************
@@ -522,8 +639,8 @@ void write_grid(struct life_t life, bool append) {
         fprintf(out_ptr, "%d %d\n", ncols, nrows);
         
         #pragma omp parallel for private(j)
-        for (i = 0; i <= ncols; i++) {
-            for (j = 0; j <= nrows; j++) {
+        for (i = 0; i <= nrows; i++) {
+            for (j = 0; j <= ncols; j++) {
                 if (life.grid[i][j] != DEAD)
                     fprintf(out_ptr, "%d %d\n", i, j);
             }

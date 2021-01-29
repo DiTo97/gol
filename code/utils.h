@@ -639,18 +639,18 @@ void write_grid(struct life_t life, bool append) {
             return;
         }
 
-        fprintf(out_ptr, "%d %d\n", ncols, nrows);
+        fprintf(out_ptr, "%d %d\n", nrows, ncols);
         
         #pragma omp parallel for private(j)
-        for (i = 0; i <= nrows; i++) {
-            for (j = 0; j <= ncols; j++) {
+        for (i = 0; i < nrows; i++) {
+            for (j = 0; j < ncols; j++) {
                 if (life.grid[i][j] != DEAD)
                     fprintf(out_ptr, "%d %d\n", i, j);
             }
         }
 
         // Separate different GoL board dumps.
-        fprintf(out_ptr, "\n\n\n\n\n\n****************************************************************************************************\n\n\n\n\n\n");
+        fprintf(out_ptr, "****************************************************************************************************\n");
 
         fflush(out_ptr);
         fclose(out_ptr);

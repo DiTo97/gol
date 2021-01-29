@@ -1,12 +1,12 @@
 #ifndef GoL_GLOBALS_H
 #define GoL_GLOBALS_H 
 
-const int DEFAULT_TIMESTEPS = 20;
+const int DEFAULT_TIMESTEPS = 100;
 
-const int DEFAULT_SIZE_ROWS = 100;
-const int DEFAULT_SIZE_COLS = 100;
+const int DEFAULT_SIZE_ROWS = 50;
+const int DEFAULT_SIZE_COLS = 50;
 
-const float DEFAULT_INIT_PROB = 0.5;
+const float DEFAULT_INIT_PROB = 0.33;
 
 const char *DEFAULT_OUT_FILE = "GoL.out";
 const char *DEFAULT_LOGS_DIR = "logs";

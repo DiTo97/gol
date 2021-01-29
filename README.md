@@ -53,19 +53,17 @@ k = {1, 2, 3}
 - Update Makefile with MPI flags.
 
 - Add MPI or CUDA support to log filenames.
-  
-- Add write_grid() to printbig() to save the grid in CSO format.
-- Update write_grid() with row/col values in the first row.
+
+- Update Python comparison tool to account for full-grid inputs.
+- Revert back printbig() and add MPI chunks support for it.
 
 - [How to measure elapsed wall-clock time?](https://stackoverflow.com/questions/12392278/measure-time-in-linux-time-vs-clock-vs-getrusage-vs-clock-gettime-vs-gettimeof)
 
-- [GoL implementation with MPI](https://github.com/freetonik/MPI-life)
+### Defaults
 
-- [No global array](https://stackoverflow.com/questions/9269399/sending-blocks-of-2d-array-in-c-using-mpi)
+- The boarderline size to distinguish a small GoL's grid from a big one has been updated to $50$x$50$.
 
-- [Slice matrix with scatter](https://stackoverflow.com/questions/33507024/mpi-scatter-and-gather-for-2d-matrix-in-mpi-using-c)
-
-#### MPI
+### MPI
 
 1. Master parses arguments and creates life_t structure
 2. Master gets number of processes and comm size from MPI

@@ -6,3 +6,5 @@ hpcocapie06
 hpcocapie07
 hpcocapie08
 hpcocapie09
+hpcocapie10
+hpcocapie11

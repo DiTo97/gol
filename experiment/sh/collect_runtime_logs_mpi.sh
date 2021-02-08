@@ -1,28 +1,30 @@
 #!/bin/bash
-# Test compilation and execution times for different ICC optimization levels.
-
-# This file should be executed with folder experiments as the current working directory
+# Collect cumulative evolution and total execution times of Game of Life (GoL)'s binary for a variable \# of MPI processes
+# given a \# of physical nodes.
+#
+# Please note - A: Execute this file with its folder as the CWD.
+# Please note - B: MPI experiments can run a grand total of 256 processes per node due to hardware constraints (64 cores x 4 threads),
+# but cap at a maximum of 1024 in order not to overly stress the load on the underlying INFN's architecture.
+# Please note - C: GoL boards are assumed to be square, unless otherwise stated.
+# Please note - D: GoL_LOG's guard is required in compilation to enable logging functions.
+# Please note - E: Edit the list of endpoints from the nodesfile to limit the # of available nodes.
+#
 
 BOARD_DIMENS=(100 500 1000 5000 10000 20000 40000 100000)
+PROCESSES=(2 4 8 16 32 64 128 256 512 1024)
 
-BEST_OPT_LEVEL=2
-NODE_NUM=$1
-
-if [ $NODE_NUM -eq 1 ]
-then
-    PROCESS_NUM=(2 4 8 16 32 64 128 256)
-elif [ $NODE_NUM -eq 2 ]
-then
-    PROCESS_NUM=(2 4 8 16 32 64 128 256 512)
-else
-    PROCESS_NUM=(2 4 8 16 32 64 128 256 512 1024)
-fi
+best_opt_level=2
+num_nodes=$1 # Pass it via CLI arguments
+logical_cores=256
 
 # I/O variables
-srcfile="../../../gol.c"
-nodesfile="mpi_nodes.txt"
-binfile="../../../bin/Gol_mpi_${NODE_NUM}"
-outfile="Gol_mpi_${NODE_NUM}​​.out"
+binname="GoL_mpi_${num_nodes}"
+
+srcfile="../../src/cpu/gol.c"
+nodesfile="nodeslist.txt"
+
+binfile="../../bin/${binname}"
+outfile="${binname}.out"
 
 # Metadata variables
 init_prob=0.5
@@ -30,37 +32,37 @@ seed=1
 tsteps=100
 reps=1
 
+# Compile a GoL binary right before running the experiments
+mpiicc -DGoL_MPI -O$best_opt_level -DGoL_LOG -ipo -xHost $srcfile -o $binfile
 
-# Making a compilation before running the experiments
-mpiicc -D GoL_MPI -O$BEST_OPT_LEVEL -D GoL_DEBUG -ipo -xHost $srcfile -o $binfile
-
-for (( rep=0; rep<$reps; ++rep));
+for (( rep=0; rep<$reps; ++rep ));
 do
-    for i in "${BOARD_DIMENS[@]}"
+    for size in "${BOARD_DIMENS[@]}"
     do
-        # For starters, we assume square GoL boards
-        ncols=$i
+        ncols=$size
 
-        if [ $i -eq 100000 ]
-        then
-            nrows=1000
+        if [ $i -eq 100000 ] # A size of 100000 was chosen to test the MPI implementation with a non-square matrix.
+        then                 # Indeed since MPI processes split the data in groups of rows, this experiment
+            nrows=1000       # would compare their behaviour with fewer rows and more columns
         else
-            nrows=$i
+            nrows=$size
         fi
 
-        for p_num in "${PROCESS_NUM[@]}"
+        for p_num in "${PROCESSES[@]}"
         do
-            proc_per_host_div=$((p_num / NODE_NUM))
-            proc_per_host_val=0
-
-            if [ $proc_per_host_div -eq 0 ]
+            if [ $p_num -gt $((logical_cores * num_nodes)) ] # Ensure hardware constraints have not been exceeded
             then
-                proc_per_host_val=1
-            else
-                proc_per_host_val=$proc_per_host_div
+                continue
             fi
 
-            mpiexec -hostfile $nodesfile -perhost $proc_per_host_val -np $p_num ./$binfile $ncols $nrows $tsteps $outfile $seed $init_prob
+            p_per_host=$((p_num / num_nodes))
+
+            if [ $p_per_host -lt 1 ] # Ensure each of the requested nodes has at least 1 process to run
+            then
+                continue
+            fi
+
+            mpiexec -hostfile $nodesfile -perhost $p_per_host -np $p_num ./$binfile $ncols $nrows $tsteps $outfile $seed $init_prob
         done
     done
 done

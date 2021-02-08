@@ -1,76 +1,44 @@
-# Game of Life
+# Game of Life on GPU
 
-Comparative analysis of possible parallel implementations of Conway's famous [Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) (GoL) using CUDA, OpenMP and MPI toolkits on INFN's [Ocapie cluster](https://web.ge.infn.it/calcolo/joomla/2-uncategorised/106-farm-hpc-ocapie) for HPC.
+### CUDA
 
-**Authors**: F. Minutoli, M. Ghirardelli, and D. Surpanu.
+1. Create another version of the parse_args function, which uses the following parameters:
 
-## Useful links
+    - ncols
+    - nrows
+    - tsteps
+    - output_file
+    - input_file
+    - seed
+    - init_prob
+    - help
+    - nblocks
+    - threads_per_block
 
-- [Parallel Programming Illustrated through Conway's Game of Life](https://tcpp.cs.gsu.edu/curriculum/?q=system/files/ch10.pdf)
-- [Parallelization: Conway's Game of Life](http://www.shodor.org/media/content/petascale/materials/UPModules/GameOfLife/Life_Module_Document_pdf.pdf)
-- [BWPEP on Conway's Game of Life](http://shodor.org/petascale/materials/UPModules/exercises/Game_of_Life/)
-- [A Performance Analysis of GoL](https://arxiv.org/pdf/1209.4408.pdf)
-- [What is a Dwarf in HPC?](https://www5.in.tum.de/lehre/vorlesungen/hpc/WS15/structured.pdf)
+   Delete argument life->num_threads, add arguments life->n_blocks and life->nthreads_per_block
 
-## Useful information
+2. set_grid_dimens_from_file remains the same
 
-### Full-matrix format
+3. game should be modified as follows:
 
-### CPU compilation
+    - Function initialize should allocate a single 1D array (as performed for the MPI implementation) to 
+      represent the gol matrix
 
-Sample command: **icc gol.c -o GoL**
+    - After having called function initialize, use cudaMalloc just twice at the beginning of the GoL game to allocate
+      the current board and the next board on the GPU. Use cudaMemcpy to initialize the corresponding values on the GPU, for both
+      the current board and the next board. 
+        Current board --> at the beginning, contains the initial gol board
+        Next board --> at the beginning, contains only zeros
+      Optionally, use cudaMemCpy multiple times if you want to retrieve partial results, or if you want to visualize them
+      with function display.
 
--qopenmp, enables OpenMP support
+    - Define __global__ kernel function *void cudaEvolve* in the main file *gol_cuda.cu*. This function is used to perform
+      one step of the GoL game by using the GPU. The implementation of the kernel function uses a single contiguos array 
+      instead of a matrix, for the purpose of reducing the number of modulo operations. To implement the kernel function,
+      use the "Simple GPU implementation" reported at http://www.marekfiser.com/Projects/Conways-Game-of-Life-on-GPU-using-CUDA/2-Basic-implementation
+     
+    - The steps in which we measure the execution time remain the same
 
-### Number of available threads
+ 4. Modify function cleanup and remove the pragmas
 
-- **Number of threads per PID**: ps -o nlwp <pid>
-- **Info on the architecture**: lscpu
-
-256 processors, 64 cores per processor and 4 threads per core.
-
-### Compiler optimization
-
-icc -O{i} -ipo -fast -g -opt-report -xHost -sse{k}  
-
-i := {0, 1, 2, 3}  
-k := {1, 2, 3}
-
--qopt-report={0, ..., 5}  
--qopt-report-phase=vec
-
--g, creates symbols for debugging.
-
--ipo, slows compilation down in exchange of an appreciable boost in performance.
-
-### FIXMEs
-
-### TODOs
-
-- Add MPI/CUDA support to log filenames.
-
-- [How to measure elapsed wall-clock time?](https://stackoverflow.com/questions/12392278/measure-time-in-linux-time-vs-clock-vs-getrusage-vs-clock-gettime-vs-gettimeof)
-
-### Defaults
-
-- The borderline size to distinguish a small GoL's grid from a big one has been updated to $50$x$50$.
-
-### MPI pseudo-code
-
-**Please note:** The rank 0 process is the only process authorized to interface with display operations.
-
-1. The rank 0 process parses arguments and creates a `life_t` structure
-2. All processes store the number of processes and the communicator size from MPI
-3. All processes compute the correct indexes for their chunk of data
-4. All processes allocate memory for their chunk of data in a `chunk_t` structure
-5. All processes fill in the memory with their chunk of data either via file or via random generation. The data will also comprise generation 0's ghost rows, in order to avoid the 1st round of message passing.
-6. For the number of generations `N`:
-    - All processes evolve their chunk
-    - If the grid is small:
-        - All other processes send their updated chunk back to the rank 0 process
-        - The rank 0 process sequentially prints the updated grid to console
-    - All processes share ghost rows with adjacent peers
-7. All other processes send their final chunk back to the rank 0 process
-8. The rank 0 process sequentially prints the final grid to console/file
-
-### CUDA pseudo-code
+ 5. Implement a function *cudaCleanup* to de-allocate the memory of the device

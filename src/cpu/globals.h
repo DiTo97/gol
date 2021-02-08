@@ -1,12 +1,14 @@
 #ifndef GoL_GLOBALS_H
 #define GoL_GLOBALS_H 
 
-const int DEFAULT_TIMESTEPS = 100;
+#include <stdbool.h>
+
+const int DEFAULT_TIMESTEPS = 1000;
 
 const int DEFAULT_SIZE_ROWS = 50;
 const int DEFAULT_SIZE_COLS = 50;
 
-const float DEFAULT_INIT_PROB = 0.33;
+const float DEFAULT_INIT_PROB = 0.5;
 
 const char *DEFAULT_OUT_FILE = "GoL.out";
 const char *DEFAULT_LOGS_DIR = "logs";
@@ -24,8 +26,8 @@ const int DEFAULT_MAX_THREADS = 256; // 4 threads x 64 cores per processor
 
 // Grid cell's state
 enum {
-    DEAD  = 0,
-    ALIVE = 1
+    DEAD  = false,
+    ALIVE = true
 };
 
 enum TAGS {

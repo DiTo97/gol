@@ -2,24 +2,40 @@
 # Makefile for all versions (serial, vectorized, OMP, MPI, CUDA) of Game of Life #
 ##################################################################################
 
+#############
 # Compilers #
-CC    = icc    # Intel C compiler
-MPICC = mpiicc # Intel C compiler, with MPI support
-NVCC  = nvcc   # NVIDIA CUDA C compiler 
+#############
+# Intel C compiler
+CC    = icc
+# Intel C compiler, with MPI support
+MPICC = mpiicc
+# NVIDIA CUDA C compiler
+NVCC  = nvcc
 
+#####################
 # Compilation flags #
-OMP_FLAGS = -qopenmp        # OpenMP flags
-MPI_FLAGS = -DGoL_MPI       # MPI flags
-VEC_FLAGS = -O2 -ipo -xHost # ICC vectorization flags
+#####################
+# OpenMP flags
+OMP_FLAGS = -qopenmp
+# MPI flags
+MPI_FLAGS = -DGoL_MPI
+# ICC vectorization flags
+VEC_FLAGS = -O2 -ipo -xHost
 
-# Source endpoints # 
+####################
+# Source endpoints #
+####################
 SRC_DIR = src
 CPU_DIR = $(SRC_DIR)/cpu
 GPU_DIR = $(SRC_DIR)/gpu
 
+####################
 # Output endpoints #
-BIN_PRE = GoL # Binary files' common prefix
-BIN_DIR = bin # Binary files' directory
+####################
+# Binary files' common prefix
+BIN_PRE = GoL
+# Binary files' directory
+BIN_DIR = bin
 
 all: dirs no_opt vec omp vec_omp mpi vec_mpi hybrid vec_hybrid cuda
 

@@ -43,6 +43,7 @@ void show(struct life_t life) {
 /**
  * Print the current GoL chunk to console.
  */
+#ifdef GoL_MPI
 void show_chunk(struct chunk_t chunk) {
     int x, y;
 
@@ -64,7 +65,7 @@ void show_chunk(struct chunk_t chunk) {
 /**
  * Print the current GoL buffer to console.
  */
-void show_buffer(int ncols, int nrows, unsigned int *buffer) {
+void show_buffer(int ncols, int nrows, bool *buffer) {
     int x, y;
 
     for (x = 0; x < nrows; x++) {
@@ -90,41 +91,48 @@ void write_chunk(struct chunk_t chunk, int tot_rows, char *out_file, bool append
 
     if ((out_ptr = fopen(out_file, mode)) == NULL) {
         perror("[*] Failed to open the output file.");
+        // TODO here we don't have the communicator
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    fprintf(out_ptr, "%d %d\n", tot_rows, ncols);
+    if (!append)
+        fprintf(out_ptr, "%d %d\n", tot_rows, ncols);
         
-    #pragma omp parallel for private(j)
     for (i = 0; i < nrows; i++) {
         for (j = 0; j < ncols; j++) {
-            if (chunk.chunk[i][j] != DEAD)
-                fprintf(out_ptr, "%d %d\n", i, j);
+            if (chunk.chunk[i][j] == DEAD)
+                fprintf(out_ptr, "%c", ' ');
+            else
+                fprintf(out_ptr, "%c", 'X');
         }
+        fprintf(out_ptr, "\n");
     }
 
     fflush(out_ptr);
     fclose(out_ptr);
 }
 
-void write_buffer(int ncols, int buf_rows, unsigned int *buffer, int rank, int size, int nrows, FILE* out_ptr) {
+void write_buffer(bool *buffer, int nrows, int ncols, int buf_rows, int rank, int size, FILE* out_ptr) {
     int i, j;
 
-    bool last = rank == size - 1;
+    bool last = (rank == size - 1);
     int abs_row = rank * nrows;
 
-    #pragma omp parallel for private(j)
     for (i = 0; i < buf_rows; i++) {
         for (j = 0; j < ncols; j++) {
-            if (*((buffer + i*ncols) + j) != DEAD)
-                fprintf(out_ptr, "%d %d\n", i + abs_row, j);
+            if (*((buffer + i*ncols) + j) == DEAD)
+                fprintf(out_ptr, "%c", ' ');
+            else
+                fprintf(out_ptr, "%c", 'X');
         }
+        fprintf(out_ptr, "\n");
     }
 
     if (last)
         // Separate different GoL board dumps.
         fprintf(out_ptr, "****************************************************************************************************\n");
 }
+#endif
 
 /**
  * Print the current GoL board to file.
@@ -141,14 +149,18 @@ void printbig(struct life_t life, bool append) {
     
     if(append) out_ptr = fopen(life.output_file, "a" );
     else out_ptr = fopen(life.output_file, "w" );
-    
+     
+    if (!append)
+        fprintf(out_ptr, "%d %d\n", nrows, ncols);
+
     for (x = 0; x < nrows; x++) {
         for (y = 0; y < ncols; y++) 
-            fprintf(out_ptr, "%c", life.grid[y][x] ? 'x' : ' ');
+            fprintf(out_ptr, "%c", life.grid[x][y] == ALIVE ? 'X' : ' ');
             
         fprintf(out_ptr, "\n");
     }
-    fprintf(out_ptr, "\n\n\n\n\n\n****************************************************************************************************\n\n\n\n\n\n");
+
+    fprintf(out_ptr, "****************************************************************************************************\n");
 
     fflush(out_ptr);
     fclose(out_ptr);
@@ -158,7 +170,7 @@ void printbig(struct life_t life, bool append) {
  * Print the current GoL board to either console or file depending on whether its size is larger than DEFAULT_MAX_SIZE.
  */
 void display(struct life_t life, bool append) {
-    if(is_big(life)) write_grid(life, append);
+    if(is_big(life)) printbig(life, append);
     else show(life);
 }
 
@@ -219,15 +231,16 @@ void initialize(struct life_t *life) {
         init_random(life);
     }
 
-    #ifdef GoL_DEBUG
-    debug(*life);
-    usleep(1000000);
-    #endif
+    // #ifdef GoL_DEBUG
+    // debug(*life);
+    // usleep(1000000);
+    // #endif
 }
 
 /**
  * Initialize all variables and structures required by GoL evolution.
  */
+#ifdef GoL_MPI
 void initialize_chunk(struct chunk_t *chunk, struct life_t life, FILE *input_ptr, int from, int to) {
     srand(life.seed);
 
@@ -239,7 +252,7 @@ void initialize_chunk(struct chunk_t *chunk, struct life_t life, FILE *input_ptr
     
     // 5. Initialize the chunk with ALIVE cells...
     if (input_ptr != NULL) { // ...from file, if present...
-        init_chunk_from_file(chunk, life.num_rows, input_ptr, from, to);
+        init_chunk_from_file(chunk, life.num_rows, life.num_cols, input_ptr, from, to);
     } else {  // ...or randomly, otherwise.
         init_random_chunk(chunk, life, from, to);
     }
@@ -248,6 +261,14 @@ void initialize_chunk(struct chunk_t *chunk, struct life_t life, FILE *input_ptr
     // debug(*life);
     usleep(1000000);
     #endif
+}
+#endif
+
+void swap_grids(bool ***old, bool ***new) {
+    bool **temp = *old;
+
+    *old = *new;
+    *new = temp;
 }
 
 /**
@@ -297,16 +318,17 @@ void evolve(struct life_t *life) {
         }
 
     // 2. Replace the old grid with the updated one.
-    #pragma omp parallel for private(x)
-    for (y = 0; y < nrows; y++) 
-        for (x = 0; x < ncols; x++) 
-            life->grid[y][x] = life->next_grid[y][x];
+    swap_grids(&life->grid, &life->next_grid);
+    // #pragma omp parallel for private(x)
+    // for (y = 0; y < nrows; y++) 
+    //     for (x = 0; x < ncols; x++) 
+    //         life->grid[y][x] = life->next_grid[y][x];
 }
 
 /**
  * Perform GoL evolution for a given amount of generations and measure execution times.
  */
-void game(struct life_t *life) {
+double game(struct life_t *life) {
     int x, y, t;
 
     struct timeval start, end;
@@ -319,10 +341,6 @@ void game(struct life_t *life) {
 
     double tot_time = 0.;
     double cur_time = 0.;
-
-    #ifdef GoL_DEBUG
-    FILE *log_ptr = init_log_file(*life);
-    #endif
 
     display(*life, false);
 
@@ -351,19 +369,15 @@ void game(struct life_t *life) {
             display(*life, true);
         }
 
-        #ifdef GoL_DEBUG
-        get_grid_status(*life);
-        log_data(log_ptr, t, cur_time, tot_time);
-        #endif
+        // #ifdef GoL_DEBUG
+        // // get_grid_status(*life);
+        // #endif
     }
 
     printf("\nTotal processing time of GoL evolution for %d generations: %.5f ms\n",
         life->timesteps, tot_time);
 
-    #ifdef GoL_DEBUG
-    fflush(log_ptr);
-    fclose(log_ptr);
-    #endif
+    return tot_time;
 }
 
 void cleanup(struct life_t *life) {
@@ -419,10 +433,11 @@ void evolve_chunk(struct chunk_t *chunk){
         }
 
     // 2. Replace the old grid with the updated one.
-    #pragma omp parallel for private(x)
-    for (x = 1; x < nrows + 1; x++) 
-        for (y = 0; y < ncols; y++) 
-            chunk->chunk[x][y] = chunk->next_chunk[x][y];
+    swap_grids(&chunk->chunk, &chunk->next_chunk);
+    // #pragma omp parallel for private(x)
+    // for (x = 1; x < nrows + 1; x++) 
+    //     for (y = 0; y < ncols; y++) 
+    //         chunk->chunk[x][y] = chunk->next_chunk[x][y];
 }
 
 void display_chunk(struct chunk_t *chunk, bool big, int tot_rows, char *out_file, bool append) {
@@ -439,7 +454,7 @@ void display_chunk(struct chunk_t *chunk, bool big, int tot_rows, char *out_file
         int nrows = chunk->num_rows;
         int ncols = chunk->num_cols;
 
-        unsigned int buffer[nrows + chunk->displacement][ncols];
+        bool buffer[nrows + chunk->displacement][ncols];
 
         int j, k;
 
@@ -459,7 +474,7 @@ void display_chunk(struct chunk_t *chunk, bool big, int tot_rows, char *out_file
         // 2. Collect and print other processes'
         for (r = 1; r < chunk->size; r++) {
             MPI_Recv(&buffer[0][0], (nrows + chunk->displacement) * ncols,
-                        MPI_INT, r, PRINT, MPI_COMM_WORLD, &status);
+                        MPI_C_BOOL, r, PRINT, MPI_COMM_WORLD, &status);
 
             int rrows = (r == chunk->size - 1) \
                         ? nrows + chunk->displacement \
@@ -468,7 +483,7 @@ void display_chunk(struct chunk_t *chunk, bool big, int tot_rows, char *out_file
             if (!big)
                 show_buffer(ncols, rrows, &buffer[0][0]);
             else
-                write_buffer(ncols, rrows, &buffer[0][0], r, chunk->size, nrows, out_ptr);
+                write_buffer(&buffer[0][0], nrows, ncols, rrows, r, chunk->size, out_ptr);
         }
 
         // 3. Flush buffer to stdout/file
@@ -480,13 +495,13 @@ void display_chunk(struct chunk_t *chunk, bool big, int tot_rows, char *out_file
         }
     } else{
         MPI_Send(&chunk->chunk[1][0], chunk->num_rows * chunk->num_cols,
-                    MPI_INT, 0, PRINT, MPI_COMM_WORLD);
+                    MPI_C_BOOL, 0, PRINT, MPI_COMM_WORLD);
     }
 
     usleep(160000);
 }
 
-void game_chunk(struct chunk_t *chunk, struct life_t life){
+double game_chunk(struct chunk_t *chunk, struct life_t life){
     int i;
     MPI_Status status;
 
@@ -497,9 +512,14 @@ void game_chunk(struct chunk_t *chunk, struct life_t life){
 
     struct timeval gstart, gend;
 
+    double cur_gtime = 0.0;
+    double tot_gtime = 0.0;
+
     display_chunk(chunk, big, tot_rows, out_file, false);
 
     for (i = 0; i < timesteps; i++){
+        MPI_Barrier(MPI_COMM_WORLD);
+
         if (chunk->rank == 0)
             // Track the start time
             gettimeofday(&gstart, NULL);
@@ -507,13 +527,29 @@ void game_chunk(struct chunk_t *chunk, struct life_t life){
         // Let the current chunk evolve
         evolve_chunk(chunk);
 
-        if (chunk->rank == 0)
+        int prev_rank = (chunk->rank - 1 + chunk->size) % chunk->size;
+        int next_rank = (chunk->rank + 1) % chunk->size;
+
+        // Share ghost rows
+        MPI_Sendrecv(&chunk->chunk[1][0], chunk->num_cols, MPI_C_BOOL, prev_rank, TOP,
+                     &chunk->chunk[chunk->num_rows + 1][0], chunk->num_cols, MPI_C_BOOL, next_rank, TOP,
+                     MPI_COMM_WORLD, &status);
+
+        MPI_Sendrecv(&chunk->chunk[chunk->num_rows][0], chunk->num_cols, MPI_C_BOOL, next_rank, BOTTOM,
+                     &chunk->chunk[0][0], chunk->num_cols, MPI_C_BOOL, prev_rank, BOTTOM,
+                     MPI_COMM_WORLD, &status);
+
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        if (chunk->rank == 0) {
             // Track the end time
             gettimeofday(&gend, NULL);
+            cur_gtime = elapsed_wtime(gstart, gend);
+            tot_gtime += cur_gtime;
+        }
 
         if(big) {
             if (chunk->rank == 0) {
-                double cur_gtime = elapsed_wtime(gstart, gend);
                 printf("Generation #%d took %.5f ms on process 0\n", i, cur_gtime);  
             }
 
@@ -525,18 +561,9 @@ void game_chunk(struct chunk_t *chunk, struct life_t life){
         }else{
             display_chunk(chunk, big, tot_rows, out_file, true);
         }
-
-        int prev_rank = (chunk->rank - 1 + chunk->size) % chunk->size;
-        int next_rank = (chunk->rank + 1) % chunk->size;
-
-        MPI_Sendrecv(&chunk->chunk[1][0], chunk->num_cols, MPI_INT, prev_rank, TOP,
-                     &chunk->chunk[chunk->num_rows + 1][0], chunk->num_cols, MPI_INT, next_rank, TOP,
-                     MPI_COMM_WORLD, &status);
-
-        MPI_Sendrecv(&chunk->chunk[chunk->num_rows][0], chunk->num_cols, MPI_INT, next_rank, BOTTOM,
-                     &chunk->chunk[0][0], chunk->num_cols, MPI_INT, prev_rank, BOTTOM,
-                     MPI_COMM_WORLD, &status);
     }
+
+    return tot_gtime;
 }
 
 void debug_chunk(struct chunk_t chunk) {
@@ -557,6 +584,10 @@ void debug_chunk(struct chunk_t chunk) {
 int main(int argc, char **argv) {
     struct life_t life;
     struct timeval start, end;
+
+    int size = 1;
+
+    double cum_gene_time, elapsed_prog_wtime;
 
     gettimeofday(&start, NULL);
 
@@ -582,6 +613,7 @@ int main(int argc, char **argv) {
 
     // get the processes info
     MPI_Comm_size(MPI_COMM_WORLD, &chunk.size);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &chunk.rank);
 
     if(chunk.size != 1){
@@ -614,43 +646,61 @@ int main(int argc, char **argv) {
         // initializing the chunk
         initialize_chunk(&chunk, life, input_ptr, from, to);
 
-        game_chunk(&chunk, life);
+        double tot_gtime = game_chunk(&chunk, life);
+
+        if (chunk.rank == 0) {
+            cum_gene_time = tot_gtime;
+        }
 
         // debug_chunk(chunk);
 
         MPI_Barrier(MPI_COMM_WORLD);
         // printf("Processor %d: %d, %d\n", chunk.rank, from, to);
 
-
-        // if (chunk.rank == 1)
-        //     usleep(1000);
-
-        // show_chunk(chunk);
         if(chunk.rank == 0){
             gettimeofday(&end, NULL);
-            printf("The execurion time is %.5f ms\n", elapsed_wtime(start, end));
+            elapsed_prog_wtime = elapsed_wtime(start, end);
+            printf("The execurion time is %.5f ms\n", elapsed_prog_wtime);
         }
     }else{
         // 2. Launch the simulation
-        game(&life);
+        cum_gene_time = game(&life);
 
         // 3. Free the memory
         cleanup(&life);
         gettimeofday(&end, NULL);
-        printf("The execurion time is %.5f ms\n", elapsed_wtime(start, end));
+        elapsed_prog_wtime = elapsed_wtime(start, end);
+        printf("The execurion time is %.5f ms\n", elapsed_prog_wtime);
     }
 
     error = MPI_Finalize();
 
     #else
     // 2. Launch the simulation
-    game(&life);
+    cum_gene_time = game(&life);
 
     // 3. Free the memory
     cleanup(&life);
 
     gettimeofday(&end, NULL);
-    printf("The total execurion time in sequential case is %.5f ms", elapsed_wtime(start, end));
 
+    elapsed_prog_wtime = elapsed_wtime(start, end);
+    printf("The total execurion time in sequential case is %.5f ms", elapsed_prog_wtime);
+    #endif
+
+    #ifdef GoL_LOG
+
+    #ifdef GoL_MPI
+    if (chunk.rank == 0) {
+    #endif
+    FILE *log_ptr = init_log_file(life, size);
+
+    log_data(log_ptr, life.timesteps, cum_gene_time, elapsed_prog_wtime);
+
+    fflush(log_ptr);
+    fclose(log_ptr);
+    #ifdef GoL_MPI
+    }
+    #endif
     #endif
 }

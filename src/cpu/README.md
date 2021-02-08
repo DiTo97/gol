@@ -1,20 +1,4 @@
-# Game of Life
-
-Comparative analysis of possible parallel implementations of Conway's famous [Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) (GoL) using CUDA, OpenMP and MPI toolkits on INFN's [Ocapie cluster](https://web.ge.infn.it/calcolo/joomla/2-uncategorised/106-farm-hpc-ocapie) for HPC.
-
-**Authors**: F. Minutoli, M. Ghirardelli, and D. Surpanu.
-
-## Useful links
-
-- [Parallel Programming Illustrated through Conway's Game of Life](https://tcpp.cs.gsu.edu/curriculum/?q=system/files/ch10.pdf)
-- [Parallelization: Conway's Game of Life](http://www.shodor.org/media/content/petascale/materials/UPModules/GameOfLife/Life_Module_Document_pdf.pdf)
-- [BWPEP on Conway's Game of Life](http://shodor.org/petascale/materials/UPModules/exercises/Game_of_Life/)
-- [A Performance Analysis of GoL](https://arxiv.org/pdf/1209.4408.pdf)
-- [What is a Dwarf in HPC?](https://www5.in.tum.de/lehre/vorlesungen/hpc/WS15/structured.pdf)
-
-## Useful information
-
-### Full-matrix format
+# Game of Life on CPU
 
 ### CPU compilation
 
@@ -43,18 +27,6 @@ k := {1, 2, 3}
 
 -ipo, slows compilation down in exchange of an appreciable boost in performance.
 
-### FIXMEs
-
-### TODOs
-
-- Add MPI/CUDA support to log filenames.
-
-- [How to measure elapsed wall-clock time?](https://stackoverflow.com/questions/12392278/measure-time-in-linux-time-vs-clock-vs-getrusage-vs-clock-gettime-vs-gettimeof)
-
-### Defaults
-
-- The borderline size to distinguish a small GoL's grid from a big one has been updated to $50$x$50$.
-
 ### MPI pseudo-code
 
 **Please note:** The rank 0 process is the only process authorized to interface with display operations.
@@ -72,5 +44,3 @@ k := {1, 2, 3}
     - All processes share ghost rows with adjacent peers
 7. All other processes send their final chunk back to the rank 0 process
 8. The rank 0 process sequentially prints the final grid to console/file
-
-### CUDA pseudo-code

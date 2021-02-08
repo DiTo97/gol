@@ -53,6 +53,31 @@ mpi_vec_omp: gol.c
 clean: 
     rm -rf $(OUT_DIR) $(LOG_DIR)
 
+# ##################################################################################
+# # Makefile for the CUDA version of Game of Life #
+# ##################################################################################
+
+# # NVIDIA CUDA C compiler 
+# CC = nvcc
+
+# # Create directory command
+# MKDIR = mkdir -p
+
+# # Output directories
+# OUT_DIR = bin
+# LOG_DIR = logs
+
+# all: dirs cuda
+
+# dirs:
+# 				${MKDIR} ${OUT_DIR} ${LOG_DIR}
+
+# cuda: gol_cuda.cu
+# 				$(CC) gol_cuda.cu -o $(OUT_DIR)/GoL_cuda 
+
+# clean: 
+# 				rm -rf $(OUT_DIR) $(LOG_DIR)
+
 
 
 

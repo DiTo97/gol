@@ -45,7 +45,7 @@ struct life_t {
 
 #ifdef GoL_CUDA
 __global__ void evolve(bool *gpu_grid,
-    bool *gpu_next_grid, int nrows, int ncols);
+        bool *gpu_next_grid, int nrows, int ncols);
 #else
 void evolve(struct life_t *life);
 #endif
@@ -137,16 +137,6 @@ bool is_big(struct life_t life) {
  *********************/
 
 /**
- * Print the current GoL board to either console or file depending on whether its size is larger than DEFAULT_MAX_SIZE.
- * 
- * @param append    Whether to append to or to overwrite the output file, if in use.
- */
-void display(struct life_t life, bool append) {
-    if(is_big(life)) printbig(life, append);
-    else show(life);
-}
-
-/**
  * Print the current GoL board to console.
  */
 void show(struct life_t life) {
@@ -213,6 +203,16 @@ void printbig(struct life_t life, bool append) {
 
     fflush(out_ptr);
     fclose(out_ptr);
+}
+
+/**
+ * Print the current GoL board to either console or file depending on whether its size is larger than DEFAULT_MAX_SIZE.
+ * 
+ * @param append    Whether to append to or to overwrite the output file, if in use.
+ */
+void display(struct life_t life, bool append) {
+    if(is_big(life)) printbig(life, append);
+    else show(life);
 }
 
 #endif

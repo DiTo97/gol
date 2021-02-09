@@ -1,3 +1,5 @@
+#ifndef GoL_CHUNK_INIT_H
+#define GoL_CHUNK_INIT_H
 
 /**
  * Allocate memory for the current and next GoL chunk of board.
@@ -161,3 +163,5 @@ void init_random_chunk(struct chunk_t *chunk, struct life_t life, int from, int 
         }
     } 
 }
+
+#endif

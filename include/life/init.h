@@ -9,14 +9,13 @@
 FILE* set_grid_dimens_from_file(struct life_t *life) {
     FILE *file_ptr;
 
-    // what we do here if the file is not present or is not with the right format
-    if (life->input_file != NULL) {
-        if ((file_ptr = fopen(life->input_file, "r")) == NULL) {
+    if (life->infile != NULL) {
+        if ((file_ptr = fopen(life->infile, "r")) == NULL) {
             perror("[*] Failed to open the input file.\n");
-            perror("[*] Launching the simulation in default configuration...\n");
-        } else if (fscanf(file_ptr, "%d %d\n", &life->num_rows, &life->num_cols) == EOF) {
+            perror("[*] Launching the evolution in default configuration...\n");
+        } else if (fscanf(file_ptr, "%d %d\n", &life->nrows, &life->ncols) == EOF) {
             perror("[*] The input file only defines GoL board's dimensions!\n");
-            perror("[*] Launching the simulation in default configuration...\n");
+            perror("[*] Launching the evolution in default configuration...\n");
         } else{
             return file_ptr;
         }
@@ -28,17 +27,30 @@ FILE* set_grid_dimens_from_file(struct life_t *life) {
 
 /**
  * Allocate memory for the current and next GoL board.
- *
- * @todo Account for ghost rows (+ 2) with MPI.
  */
 void malloc_grid(struct life_t *life) {
-    int i;
+    int ncols = life->ncols;
+    int nrows = life->nrows;
 
-    int ncols = life->num_cols;
-    int nrows = life->num_rows;
+    #ifdef GoL_CUDA
+    // Guarantee continuous blocks of memory
+    life->grid = (bool *) malloc(nrows*ncols * sizeof(bool));
+
+    if (life->grid == NULL) {
+        perror("[*] GoL's board allocation failed!\n");
+        exit(EXIT_FAILURE);
+    }
+    #else
+    int i;
 
     life->grid      = (bool **) malloc(sizeof(bool *) * nrows);
     life->next_grid = (bool **) malloc(sizeof(bool *) * nrows);
+
+    if (life->grid == NULL
+            || life->next_grid == NULL) {
+        perror("[*] GoL's board allocation failed!\n");
+        exit(EXIT_FAILURE);
+    }
 
     #ifdef _OPENMP
     #pragma omp parallel for
@@ -47,22 +59,30 @@ void malloc_grid(struct life_t *life) {
         life->grid[i]      = (bool *) malloc(sizeof(bool) * (ncols));
         life->next_grid[i] = (bool *) malloc(sizeof(bool) * (ncols));
     }
+    #endif
 }
 
 /**
  * Initialize the GoL board with DEAD values.
  */
 void init_empty_grid(struct life_t *life) {
-    int i, j;
-  
+    int i;
+
+    #ifdef GoL_CUDA
+    for (i = 0; i < life->nrows*life->ncols; i++)
+        life->grid[i] = DEAD;
+    #else
+    int j;
+
     #ifdef _OPENMP
     #pragma omp parallel for private(j)
     #endif
-    for (i = 0; i < life->num_rows; i++)
-        for (j = 0; j < life->num_cols; j++) {
+    for (i = 0; i < life->nrows; i++)
+        for (j = 0; j < life->ncols; j++) {
             life->grid[i][j]      = DEAD;
             life->next_grid[i][j] = DEAD;
         }
+    #endif
 }
 
 /**
@@ -71,46 +91,48 @@ void init_empty_grid(struct life_t *life) {
  * @param file_ptr    The pointer to the open input file.
  */
 void init_from_file(struct life_t *life, FILE *file_ptr) {
-    int i, j, l;
+    int i, j;
 
-    // this if is not necessary, I cannot call this funciton if 
-    // life->input_file is NULL
-    if(life->input_file != NULL){
+    if (life->infile != NULL) {
         char *line = NULL;
-        size_t len = 0;
-        ssize_t read = 0;
+        size_t buf_size = 0; // Size of the buffer allocated to read the line
+        ssize_t len = 0;     // Amount of characters in the read line
+
         i = 0;
 
-        // Every line from the file contains row/column coordinates
-        // of every cell that has to be initialized as ALIVE.
-        while ((read = getline(&line, &len, file_ptr)) >= 0) {
-            if (i >= life->num_rows){
-                perror("[*] The input file exceeds the number of rows!\n");
+        while ((len = getline(&line, &buf_size, file_ptr)) >= 0) {
+            if (i >= life->nrows){
+                perror("[*] GoL's input file exceeds the number of rows!\n");
                 exit(EXIT_FAILURE);
             }
 
-            // `getline()` wrongly skips leading whitespaces until a non-whitespace character is met starting from the 1st row.
-            // TODO: Impose the no-leading whitespaces constraint to the input format.
+            /*
+             * `getline()` wrongly skips leading whitespaces until a non-whitespace character is met starting from the 1st row.
+             * Use a non-'X' character if the (0, 0) cell should be DEAD, i.e., 'A'.
+             */
 
-            if (read != life->num_cols + 1){
-                fprintf(stderr, "[*] Row %d does not respect the number of columns!\n", i);
+            if (len != life->ncols + 1) { // +1 for newline char, '\n'
+                fprintf(stderr, "[*] Row #%d does not respect the number of columns!\n", i);
                 exit(EXIT_FAILURE);
             }
             
-            for (l = 0; l < read - 1; l++){
-                if(line[l] == 'X'){
-                    life->grid[i][l] = ALIVE;
+            for (j = 0; j < len - 1; j++) {
+                if(line[j] == 'X') {
+                    #ifdef GoL_CUDA
+                    life->grid[i*life->ncols + j] = ALIVE;
+                    #else
+                    life->grid[i][j] = ALIVE;
+                    #endif
                 }
             }
-
-            i = i + 1;
+            i++;
         }
 
         free(line);
         line = NULL;
 
-        if (i != life->num_rows){
-            perror("[*] The input file does not respect the number of rows!\n");
+        if (i != life->nrows) {
+            perror("[*] GoL's input file does not respect the number of rows!\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -120,16 +142,24 @@ void init_from_file(struct life_t *life, FILE *file_ptr) {
 }
 
 /**
- * Initialize the GoL board with ALIVE values randomly
+ * Initialize the GoL board with ALIVE values randomly.
  */
 void init_random(struct life_t *life) {
-    int i, j;
+    int i;
 
-    for (i = 0; i < life->num_rows; i++) 
-        for (j = 0; j < life->num_cols; j++) { 
+    #ifdef GoL_CUDA
+    for (i = 0; i < life->nrows*life->ncols; i++)
+        if (rand_double(0., 1.) < life->init_prob)
+            life->grid[i] = ALIVE;
+    #else
+    int j;
+
+    for (i = 0; i < life->nrows; i++) 
+        for (j = 0; j < life->ncols; j++) { 
             if (rand_double(0., 1.) < life->init_prob)
                 life->grid[i][j] = ALIVE;
         }
+    #endif
 }
 
 #endif

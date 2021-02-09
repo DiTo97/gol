@@ -18,7 +18,7 @@
 #include <unistd.h>
 #endif
 
-#include "globals.h"
+#include "../../include/globals.h"
 
 /*********************
  * Parsing functions *

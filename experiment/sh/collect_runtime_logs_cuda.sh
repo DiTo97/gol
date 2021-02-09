@@ -29,7 +29,7 @@ tsteps=100
 reps=1
 
 # Compile a GoL binary right before running the experiments
-nvcc -DGoL_LOG $srcfile -o $binfile
+nvcc -DGoL_CUDA -DGoL_LOG $srcfile -o $binfile
 
 for (( rep=0; rep<$reps; ++rep )); do
     for size in "${BOARD_DIMENS[@]}"

@@ -24,3 +24,7 @@ Comparative analysis of possible parallel implementations of Conway's famous [Ga
 
 - Before reading the GoL matrix from an input file, replace the first character of the first row with the 'A' character to
   avoid the skipping behavior of getline. Do this if the first character is a blank space (a DEAD cell).
+
+### Folder structure
+
+### Sample usage

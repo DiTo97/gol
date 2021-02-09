@@ -15,12 +15,14 @@ NVCC  = nvcc
 #####################
 # Compilation flags #
 #####################
-# OpenMP flags
-OMP_FLAGS = -qopenmp
-# MPI flags
-MPI_FLAGS = -DGoL_MPI
 # ICC vectorization flags
-VEC_FLAGS = -O2 -ipo -xHost
+VEC_FLAGS  = -O2 -ipo -xHost
+# OpenMP flags
+OMP_FLAGS  = -qopenmp
+# MPI flags
+MPI_FLAGS  = -DGoL_MPI
+# CUDA flags
+CUDA_FLAGS = -DGoL_CUDA
 
 ####################
 # Source endpoints #
@@ -67,7 +69,7 @@ vec_hybrid: $(CPU_DIR)/gol.c
 	$(MPICC) $(VEC_FLAGS) $(OMP_FLAGS) $(MPI_FLAGS) -o $(BIN_DIR)/$(BIN_PRE)_hybrid_vec $(CPU_DIR)/gol.c
 
 cuda: $(GPU_DIR)/gol.cu
-	$(NVCC) $(GPU_DIR)/gol.cu -o $(BIN_DIR)/$(BIN_PRE)_cuda 
+	$(NVCC) $(CUDA_FLAGS) $(GPU_DIR)/gol.cu -o $(BIN_DIR)/$(BIN_PRE)_cuda 
 
 clean: 
 	rm -rf $(BIN_DIR)

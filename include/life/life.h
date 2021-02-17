@@ -1,8 +1,6 @@
 #ifndef GoL_LIFE_H
 #define GoL_LIFE_H
 
-#include "../globals.h"
-
 /**
  * All the data required by a Game of Life instance.
  */ 
@@ -43,6 +41,9 @@ struct life_t {
  * Evolution functions *
  ***********************/
 
+void initialize(struct life_t *life);
+double game(struct life_t *life);
+
 #ifdef GoL_CUDA
 __global__ void evolve(bool *gpu_grid,
         bool *gpu_next_grid, int nrows, int ncols);
@@ -51,9 +52,6 @@ void evolve(struct life_t *life);
 #endif
 
 void cleanup(struct life_t *life);
-void initialize(struct life_t *life);
-
-double game(struct life_t *life);
 
 /***********************
  * Debugging functions *
@@ -180,8 +178,13 @@ void printbig(struct life_t life, bool append) {
     int nrows = life.nrows;
 
     FILE *out_ptr = append \
-        ? fopen(life.output_file, "a" ) \
-        : fopen(life.output_file, "w" );
+        ? fopen(life.outfile, "a" ) \
+        : fopen(life.outfile, "w" );
+
+    if (out_ptr == NULL) {
+        perror("[*] Failed to open the output file.");
+        exit(EXIT_FAILURE);
+    }
      
     if (!append) // Print board dimensions only once
         fprintf(out_ptr, "%d %d\n", nrows, ncols);
@@ -189,10 +192,10 @@ void printbig(struct life_t life, bool append) {
     for (i = 0; i < nrows; i++) {
         for (j = 0; j < ncols; j++) {
             #ifdef GoL_CUDA
-            fprintf(out_ptr, "%c", life.grid[i*ncols + j] == ALIVE
+            fprintf(out_ptr, life.grid[i*ncols + j] == ALIVE
                 ? 'X' : ' ');
             #else
-            fprintf(out_ptr, "%c", life.grid[i][j] == ALIVE
+            fprintf(out_ptr, life.grid[i][j] == ALIVE
                 ? 'X' : ' ');
             #endif
         }  

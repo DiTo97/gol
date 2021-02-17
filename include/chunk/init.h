@@ -2,35 +2,34 @@
 #define GoL_CHUNK_INIT_H
 
 /**
- * Allocate memory for the current and next GoL chunk of board.
- * 
- * @todo This could be done in the above malloc_grid by unsing the union inside a 
- *       generic struct
+ * Allocate memory for the current and next slice of GoL data.
  */
 void malloc_chunk(struct chunk_t *chunk) {
     int i;
 
-    int ncols = chunk->num_cols;
-    int nrows = chunk->num_rows;
+    int ncols = chunk->ncols;
+    int nrows = chunk->nrows;
 
-    bool *data      = (bool *) malloc((nrows + 2) * ncols * sizeof(bool)); // Guarantee continuous blocks of memory
-    bool *next_data = (bool *) malloc((nrows + 2) * ncols * sizeof(bool));
+    chunk->slice      = (bool **) malloc(sizeof(bool *) * (nrows + 2)); // + 2 to account for ghost rows
+    chunk->next_slice = (bool **) malloc(sizeof(bool *) * (nrows + 2));
 
-    chunk->chunk      = (bool **) malloc(sizeof(bool *) * (nrows + 2));
-    chunk->next_chunk = (bool **) malloc(sizeof(bool *) * (nrows + 2));
+    // Dinamically allocate the actual slices of GoL data as 1D arrays to guarantee their continuity in memory,
+    // which greatly favours their exchange with MPI routines...
+    bool *data      = (bool *) malloc((nrows + 2)*ncols * sizeof(bool));
+    bool *next_data = (bool *) malloc((nrows + 2)*ncols * sizeof(bool));
 
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
-    // we don't need two extra columns because each process already has the neighboor columns
+    // ...but let them be accessed as 2D matrices for ease of use
     for (i = 0; i < nrows + 2; i++) {
-        chunk->chunk[i]      = &(data[ncols * i]);
-        chunk->next_chunk[i] = &(next_data[ncols * i]);
+        chunk->slice[i]      = &(data[ncols*i]);
+        chunk->next_slice[i] = &(next_data[ncols*i]);
     }
 }
 
 /**
- * Initialize the GoL board with DEAD values.
+ * Initialize the slices of GoL data with DEAD values.
  */
 void init_empty_chunk(struct chunk_t *chunk) {
     int i, j;
@@ -38,64 +37,132 @@ void init_empty_chunk(struct chunk_t *chunk) {
     #ifdef _OPENMP
     #pragma omp parallel for private(j)
     #endif
-    for (i = 0; i < chunk->num_rows + 2; i++)
-        for (j = 0; j < chunk->num_cols; j++) {
-            chunk->chunk[i][j]      = DEAD;
-            chunk->next_chunk[i][j] = DEAD;
+    for (i = 0; i < chunk->nrows + 2; i++)
+        for (j = 0; j < chunk->ncols; j++) {
+            chunk->slice[i][j]      = DEAD;
+            chunk->next_slice[i][j] = DEAD;
         }
 }
 
 /**
- * Initialize the chunk with ALIVE values from file.
+ * Initialize the slices of GoL data with ALIVE values randomly.
  * 
- * @param file_ptr    The pointer to the open input file.
+ * Each process will generate the very same sequence as a single process would do in the sequential case, but it will consider only
+ * those values that belong to it, whose boundaries are passed in the arguments, plus its initial ghost rows.
+ * 
+ * @param from    The # of the top row belonging to the calling process
+ * 
+ * @param to      The # of the bottom row belonging to the calling process
  */
-void init_chunk_from_file(struct chunk_t *chunk, unsigned int num_rows, unsigned int num_cols, FILE *file_ptr, int from, int to) {
-    int i, j, m, n, l, r;
+void init_random_chunk(struct chunk_t *chunk, struct life_t life, int from, int to) {
+    int i, j, m, n;
+
+    bool top_g_row = false; // Check whether the top ghost row of the calling process has been visited.
+                            //
+                            // It strengthens the exit condition especially in the case of the rank 0 process,
+                            // whose top ghost row is actually the very last row in the whole GoL board.
+
+    // 1. Generate nrows*ncols random values as in the sequential case
+    for (i = 0; i < life.nrows; i++) {
+        for (j = 0; j < life.ncols; j++) { 
+            float f = rand_double(0., 1.);    
+
+            if (f < life.init_prob) {
+                m = (from - 1 + life.nrows) % life.nrows; // # of the top ghost row
+                n = (to + 1) % life.nrows;                // # of the botton ghost row
+
+                // 2. Assign values only if they belong to the process
+                // or to either its top/bottom ghost rows
+                if (i >= from  && i <= to) {
+                    chunk->slice[i - from + 1][j] = ALIVE;
+                } else if (i == m) {
+                    chunk->slice[0][j] = ALIVE;
+                    top_g_row = true;
+                } else if (i == n) {
+                    chunk->slice[chunk->nrows + 1][j] = ALIVE;
+                }
+            }
+        }
+
+        // If the process has already collected all its values interrupt the loop,
+        // as there's no need to make it generate any more
+        if (i > to && top_g_row)
+            break;
+    } 
+}
+
+/**
+ * Initialize the slices of GoL data with ALIVE values from file.
+ * 
+ * Each process will read the whole file as a single process would do in the sequential case, but it will consider only
+ * those values that belong to it, whose boundaries are passed in the arguments, plus its initial ghost rows.
+ * 
+ * @param tot_rows    The overall number of rows in GoL's board.
+ * 
+ * @param tot_cols    The overall number of columns in GoL's board.
+ * 
+ * @param file_ptr    The pointer to the open input file starting from the 2nd line.
+ * 
+ * @param from        The # of the top row belonging to the calling process
+ * 
+ * @param to          The # of the bottom row belonging to the calling process
+ */
+void init_chunk_from_file(struct chunk_t *chunk, int tot_rows, int tot_cols,
+        FILE *file_ptr, int from, int to) {
+    int i, m, n, l, r;
+
+    bool top_g_row = false;
+
     char *line = NULL;
-    bool grow_top = false;
-    size_t len = 0;
-    ssize_t read = 0;
+    size_t buf_size = 0; // Size of the buffer allocated to read the line
+    ssize_t len = 0;     // Amount of characters in the read line
+
+    bool finished = false; // Check whether all the necessary rows have been read correctly from the file,
+                           // and the loop hasn't finished for whatever other reason
+
     i = 0;
 
-    m = (from - 1 + num_rows) % num_rows;
-    n = (to + 1) % num_rows;
+    m = (from - 1 + tot_rows) % tot_rows; // # of the top ghost row
+    n = (to + 1) % tot_rows;              // # of the botton ghost row
 
-    // Every line from the file contains row/column coordinates
-    // of every cell that has to be initialized as ALIVE.
-    while ((read = getline(&line, &len, file_ptr)) > 0) {
-
-        if (i >= num_rows){
-            perror("[*] The input file exceeds the number of rows!\n");
+    // 1. Read all lines from the file
+    while ((len = getline(&line, &buf_size, file_ptr)) != -1) {
+        if (i >= tot_rows) {
+            perror("[*] GoL's input file exceeds the number of rows!\n");
             MPI_Abort(MPI_COMM_WORLD, 1); 
         }
 
-        if (read != num_cols + 1){
+        if (len != tot_cols + 1) { // +1 for newline char, '\n'
             fprintf(stderr, "[*] Row %d does not respect the number of columns!\n", i);
             MPI_Abort(MPI_COMM_WORLD, 1); 
         }
 
-        if (i >= from  && i <= to){
+        // 2. Check if the values belong to the process
+        // or to either its top/bottom ghost rows
+        if (i >= from  && i <= to) {
             r = i - from + 1;
-        } else if( i == m ){
+        } else if( i == m ) {
             r = 0;
-            grow_top = true;
-        } else if( i == n ){
-            r = chunk->num_rows + 1;
+            top_g_row = true;
+        } else if( i == n ) {
+            r = chunk->nrows + 1;
         } else {
-            i = i + 1;
+            i++;
             continue;
         }
 
-        // assigning the rows that actually belong to the chunk
-        for (l = 0; l < read - 1; l++){
+        // 3. Assign all row values
+        for (l = 0; l < len - 1; l++){
             if (line[l] == 'X')
-                chunk->chunk[r][l] = ALIVE;
+                chunk->slice[r][l] = ALIVE;
         }
 
-        i = i + 1;
+        i++;
 
-        if ( i > to && grow_top ){
+        // As soon as the process has collected all its values interrupt the loop,
+        // since there's no need to make it read any more lines
+        if (i > to && top_g_row) {
+            finished = true;
             break;
         }
     }
@@ -103,65 +170,13 @@ void init_chunk_from_file(struct chunk_t *chunk, unsigned int num_rows, unsigned
     free(line);
     line = NULL;
 
-    if ((chunk->rank == 0) && (i != num_rows)){
-        perror("[*] The input file does not respect the number of rows!\n");
+    if (!finished) {
+        perror("[*] GoL's input file does not respect the number of rows!\n");
         MPI_Abort(MPI_COMM_WORLD, 1); 
     }
-    
-    // Every line from the file contains row/column coordinates
-    // of every cell that has to be initialized as ALIVE.
-    // here we have to read all the file, is necessary because is not ordered
-    // while (fscanf(file_ptr, "%d %d\n", &i, &j) != EOF) {
-    //     m = (from - 1 + num_rows) % num_rows;
-    //     n = (to + 1) % num_rows;
-
-    //     // assigning the rows that actually belong to the chunk
-    //     if (i >= from <= to){
-    //         chunk->chunk[i - from + 1][j] = ALIVE;
-    //     } else if( i == m ){
-    //         chunk->chunk[0][j] = ALIVE;
-    //     } else if( i == n ){
-    //         chunk->chunk[chunk->num_rows + 1][j] = ALIVE;
-    //     }
-    // }
 
     fflush(file_ptr);
     fclose(file_ptr);
-}
-
-/**
- * Initialize the GoL board with ALIVE values randomly.
- */
-void init_random_chunk(struct chunk_t *chunk, struct life_t life, int from, int to) {
-    int i, j, m, n;
-    bool grow_top = false;
-
-    // loop through the grid matrix and generate all the random values
-    for (i = 0; i < life.num_rows; i++) {
-        for (j = 0; j < life.num_cols; j++) { 
-            float f = rand_double(0., 1.);    
-
-            if (f < life.init_prob){
-                m = (from - 1 + life.num_rows) % life.num_rows;
-                n = (to + 1) % life.num_rows;
-
-                // assigning the rows that actually belong to the chunk
-                if (i >= from  && i <= to){
-                    chunk->chunk[i - from + 1][j] = ALIVE;
-                } else if( i == m ){ // controll if the last row was saved by the first process 
-                    chunk->chunk[0][j] = ALIVE;
-                    grow_top = true;
-                } else if( i == n ){
-                    chunk->chunk[chunk->num_rows + 1][j] = ALIVE;
-                }
-            }
-        }
-
-        // control if I processed all the elements and stop the loop
-        if ( i > to && grow_top ){
-            break;
-        }
-    } 
 }
 
 #endif

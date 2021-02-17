@@ -33,7 +33,8 @@ void malloc_grid(struct life_t *life) {
     int nrows = life->nrows;
 
     #ifdef GoL_CUDA
-    // Guarantee continuous blocks of memory
+    // Dinamically allocate GoL's board as a 1D array to guarantee
+    // its continuity in memory with CUDA
     life->grid = (bool *) malloc(nrows*ncols * sizeof(bool));
 
     if (life->grid == NULL) {
@@ -58,6 +59,12 @@ void malloc_grid(struct life_t *life) {
     for (i = 0; i < nrows; i++) {
         life->grid[i]      = (bool *) malloc(sizeof(bool) * (ncols));
         life->next_grid[i] = (bool *) malloc(sizeof(bool) * (ncols));
+
+        if (life->grid[i] == NULL
+                || life->next_grid[i] == NULL) {
+            perror("[*] GoL's board allocation failed!\n");
+            exit(EXIT_FAILURE);
+        }
     }
     #endif
 }
@@ -88,7 +95,8 @@ void init_empty_grid(struct life_t *life) {
 /**
  * Initialize the GoL board with ALIVE values from file.
  * 
- * @param file_ptr    The pointer to the open input file.
+ * @param file_ptr    The pointer to the open input file starting from the 2nd line. In fact the 1st line was previously read by the
+ *                    set_grid_dimens_from_file() function in order to extract the desired dimensions of GoL's board.
  */
 void init_from_file(struct life_t *life, FILE *file_ptr) {
     int i, j;
@@ -100,7 +108,7 @@ void init_from_file(struct life_t *life, FILE *file_ptr) {
 
         i = 0;
 
-        while ((len = getline(&line, &buf_size, file_ptr)) >= 0) {
+        while ((len = getline(&line, &buf_size, file_ptr)) != -1) {
             if (i >= life->nrows){
                 perror("[*] GoL's input file exceeds the number of rows!\n");
                 exit(EXIT_FAILURE);
@@ -111,7 +119,7 @@ void init_from_file(struct life_t *life, FILE *file_ptr) {
              * Use a non-'X' character if the (0, 0) cell should be DEAD, i.e., 'A'.
              */
 
-            if (len != life->ncols + 1) { // +1 for newline char, '\n'
+            if (len != life->ncols + 1) { // + 1 for newline char, '\n'
                 fprintf(stderr, "[*] Row #%d does not respect the number of columns!\n", i);
                 exit(EXIT_FAILURE);
             }

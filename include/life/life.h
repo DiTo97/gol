@@ -1,6 +1,8 @@
 #ifndef GoL_LIFE_H
 #define GoL_LIFE_H
 
+#include "../globals.h"
+
 /**
  * All the data required by a Game of Life instance.
  */ 

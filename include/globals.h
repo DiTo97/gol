@@ -1,7 +1,11 @@
 #ifndef GoL_GLOBALS_H
 #define GoL_GLOBALS_H 
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
+
+#include <unistd.h>
 
 const int DEFAULT_TIMESTEPS = 100;
 

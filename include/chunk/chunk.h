@@ -1,10 +1,18 @@
 #ifndef GoL_CHUNK_H
 #define GoL_CHUNK_H
 
+#include <mpi.h> // Enable MPI support
+#include <stdio.h>
+#include <unistd.h>
+
+// Custom includes
+#include "../globals.h"
+#include "../life/life.h"
+
 /**
  * All the data required by a single communicating process via MPI.
  */ 
-struct chunk_t {
+typedef struct chunk {
     int nrows;         // Number of columns in the slice
     int ncols;         // Number of rows in the slice w/o ghost rows
     int rank;          // Rank of the calling MPI process in the communicator
@@ -13,19 +21,19 @@ struct chunk_t {
 
     bool **slice;      // Chunk's slice of data at the current step
     bool **next_slice; // Chunk's slice of data at the next step
-};
+} chunk_t;
 
 /***********************
  * Evolution functions *
  ***********************/
 
-void initialize_chunk(struct chunk_t *chunk, struct life_t life,
+void initialize_chunk(chunk_t *chunk, life_t life,
         FILE *input_ptr, int from, int to);
 
-double game_chunk(struct chunk_t *chunk, struct life_t life);
-void evolve_chunk(struct chunk_t *chunk);
+double game_chunk(chunk_t *chunk, life_t life);
+void evolve_chunk(chunk_t *chunk);
 
-void cleanup_chunk(struct chunk_t *chunk);
+void cleanup_chunk(chunk_t *chunk);
 
 /***********************
  * Debugging functions *
@@ -34,7 +42,7 @@ void cleanup_chunk(struct chunk_t *chunk);
 /**
  * Print to console the metadata that characterizes the calling process' slice of GoL data.
  */
-void debug_chunk(struct chunk_t chunk) {
+void debug_chunk(chunk_t chunk) {
     printf("Process rank: %d\n", chunk.rank);
     printf("Number of cols: %d\n", chunk.ncols);
     printf("Number of rows: %d\n", chunk.nrows);
@@ -52,7 +60,7 @@ void debug_chunk(struct chunk_t chunk) {
 /**
  * Print the slice of GoL data assigned to the calling process to console.
  */
-void show_chunk(struct chunk_t chunk) {
+void show_chunk(chunk_t chunk) {
     int i, j;
 
     int ncols = chunk.ncols;
@@ -99,7 +107,7 @@ void show_buffer(int ncols, int nrows, bool *buffer) {
  * 
  * @param append      Whether to append to or to overwrite the output file.
  */
-void print_chunk(struct chunk_t chunk, int tot_rows, char *outfile, bool append) {
+void print_chunk(chunk_t chunk, int tot_rows, char *outfile, bool append) {
     char *mode = append ? "a" : "w";
 
     int i, j;
@@ -119,7 +127,7 @@ void print_chunk(struct chunk_t chunk, int tot_rows, char *outfile, bool append)
         
     for (i = 0; i < nrows; i++) {
         for (j = 0; j < ncols; j++)
-            fprintf(out_ptr, chunk.slice[i][j] == ALIVE
+            fprintf(out_ptr, "%c", chunk.slice[i][j] == ALIVE
                     ? 'X' : ' ');
 
         fprintf(out_ptr, "\n");
@@ -153,7 +161,7 @@ void print_buffer(bool *buffer, int ncols, int nrows, int rank,
 
     for (i = 0; i < nrows; i++) {
         for (j = 0; j < ncols; j++)
-            printf(*((buffer + i*ncols) + j) == ALIVE
+            printf("%c", *((buffer + i*ncols) + j) == ALIVE
                     ? 'X' : ' ');
 
         fprintf(out_ptr, "\n");
@@ -175,7 +183,7 @@ void print_buffer(bool *buffer, int ncols, int nrows, int rank,
  * 
  * @param append      Whether to append to or to overwrite the output file, if in use.
  */
-void display_chunk(struct chunk_t *chunk, bool big, int tot_rows,
+void display_chunk(chunk_t *chunk, bool big, int tot_rows,
         char *outfile, bool append) {
     int status; // All MPI routines in C return an int error value
 
@@ -202,7 +210,7 @@ void display_chunk(struct chunk_t *chunk, bool big, int tot_rows,
         FILE *out_ptr;
 
         if (big)
-            if ((out_ptr = fopen(out_file, "a")) == NULL) {
+            if ((out_ptr = fopen(outfile, "a")) == NULL) {
                 perror("[*] Failed to open the output file.");
                 MPI_Abort(MPI_COMM_WORLD, 1);
             }
@@ -215,7 +223,7 @@ void display_chunk(struct chunk_t *chunk, bool big, int tot_rows,
                               MPI_C_BOOL, r, PRINT, MPI_COMM_WORLD, &mstatus);
 
             if (status != MPI_SUCCESS) {
-                perror("[*] Failed to receive data from process %d - errcode %d", r, status);
+                fprintf(stderr, "[*] Failed to receive data from process %d - errcode %d", r, status);
                 MPI_Abort(MPI_COMM_WORLD, 1);
             }
 
@@ -242,7 +250,7 @@ void display_chunk(struct chunk_t *chunk, bool big, int tot_rows,
                                                                  // to skip both top and bottom ghost rows
 
         if (status != MPI_SUCCESS) {
-            perror("[*] Failed to send data to process 0 - errcode %d", status);
+            fprintf(stderr, "[*] Failed to send data to process 0 - errcode %d", status);
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
     }

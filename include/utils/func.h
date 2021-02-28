@@ -2,7 +2,6 @@
 #define GoL_FUNC_H
 
 #include <stdlib.h>
-
 #include <sys/time.h>
 
 /**

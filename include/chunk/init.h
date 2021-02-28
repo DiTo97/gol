@@ -1,10 +1,18 @@
 #ifndef GoL_CHUNK_INIT_H
 #define GoL_CHUNK_INIT_H
 
+#include <mpi.h> // Enable MPI support
+#include <stdio.h>
+#include <sys/types.h>
+
+// Custom includes
+#include "chunk.h"
+#include "../utils/func.h"
+
 /**
  * Allocate memory for the current and next slice of GoL data.
  */
-void malloc_chunk(struct chunk_t *chunk) {
+void malloc_chunk(chunk_t *chunk) {
     int i;
 
     int ncols = chunk->ncols;
@@ -31,7 +39,7 @@ void malloc_chunk(struct chunk_t *chunk) {
 /**
  * Initialize the slices of GoL data with DEAD values.
  */
-void init_empty_chunk(struct chunk_t *chunk) {
+void init_empty_chunk(chunk_t *chunk) {
     int i, j;
   
     #ifdef _OPENMP
@@ -54,7 +62,7 @@ void init_empty_chunk(struct chunk_t *chunk) {
  * 
  * @param to      The # of the bottom row belonging to the calling process
  */
-void init_random_chunk(struct chunk_t *chunk, struct life_t life, int from, int to) {
+void init_random_chunk(chunk_t *chunk, life_t life, int from, int to) {
     int i, j, m, n;
 
     bool top_g_row = false; // Check whether the top ghost row of the calling process has been visited.
@@ -107,7 +115,7 @@ void init_random_chunk(struct chunk_t *chunk, struct life_t life, int from, int 
  * 
  * @param to          The # of the bottom row belonging to the calling process
  */
-void init_chunk_from_file(struct chunk_t *chunk, int tot_rows, int tot_cols,
+void init_chunk_from_file(chunk_t *chunk, int tot_rows, int tot_cols,
         FILE *file_ptr, int from, int to) {
     int i, m, n, l, r;
 

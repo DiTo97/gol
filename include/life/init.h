@@ -3,12 +3,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <sys/types.h>
 
 // Custom includes
 #include "life.h"
-
 #include "../utils/func.h"
 
 /**

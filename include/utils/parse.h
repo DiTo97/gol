@@ -13,6 +13,9 @@ static const struct option long_opts[] = {
     #ifdef _OPENMP
     { "nthreads", required_argument, NULL, 'n' },
     #endif
+    #ifdef GoL_CUDA
+    { "block_size", required_argument, NULL, 'b' },
+    #endif
     { "seed", required_argument, NULL, 's' },
     { "init_prob", required_argument, NULL, 'p' },
     { "help", no_argument, NULL, 'h' },

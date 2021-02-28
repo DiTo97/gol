@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <unistd.h>
 
 // Custom includes
@@ -43,7 +42,7 @@ typedef struct life {
     
     char *infile;      // Input filename
     char *outfile;     // Output filename
-} life_t ;
+} life_t;
 
 /***********************
  * Evolution functions *
@@ -200,10 +199,10 @@ void printbig(life_t life, bool append) {
     for (i = 0; i < nrows; i++) {
         for (j = 0; j < ncols; j++) {
             #ifdef GoL_CUDA
-            fprintf(out_ptr, life.grid[i*ncols + j] == ALIVE
+            fprintf(out_ptr, "%c", life.grid[i*ncols + j] == ALIVE
                 ? 'X' : ' ');
             #else
-            fprintf(out_ptr, life.grid[i][j] == ALIVE
+            fprintf(out_ptr, "%c", life.grid[i][j] == ALIVE
                 ? 'X' : ' ');
             #endif
         }  

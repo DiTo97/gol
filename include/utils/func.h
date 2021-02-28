@@ -1,6 +1,10 @@
 #ifndef GoL_FUNC_H
 #define GoL_FUNC_H
 
+#include <stdlib.h>
+
+#include <sys/time.h>
+
 /**
  * Generate a random double from min to max.
  * 

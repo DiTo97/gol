@@ -1,12 +1,18 @@
 #ifndef GoL_LIFE_H
 #define GoL_LIFE_H
 
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <unistd.h>
+
+// Custom includes
 #include "../globals.h"
 
 /**
  * All the data required by a Game of Life instance.
  */ 
-struct life_t {
+typedef struct life {
     int ncols;         // Number of columns in the grid
     int nrows;         // Number of rows in the gird
     int timesteps;     // Number of generations to simulate
@@ -37,23 +43,23 @@ struct life_t {
     
     char *infile;      // Input filename
     char *outfile;     // Output filename
-};
+} life_t ;
 
 /***********************
  * Evolution functions *
  ***********************/
 
-void initialize(struct life_t *life);
-double game(struct life_t *life);
+void initialize(life_t *life);
+double game(life_t *life);
 
 #ifdef GoL_CUDA
 __global__ void evolve(bool *gpu_grid,
         bool *gpu_next_grid, int nrows, int ncols);
 #else
-void evolve(struct life_t *life);
+void evolve(life_t *life);
 #endif
 
-void cleanup(struct life_t *life);
+void cleanup(life_t *life);
 
 /***********************
  * Debugging functions *
@@ -63,7 +69,7 @@ void cleanup(struct life_t *life);
 /**
  * Print to console the status of the current GoL board: the number of ALIVE and DEAD cells.
  */
-void show_grid_status(struct life_t life) {
+void show_grid_status(life_t life) {
     int i, j;
 
     int ncols = life.ncols;
@@ -97,7 +103,7 @@ void show_grid_status(struct life_t life) {
 /**
  * Print to console the metadata that characterizes the current GoL board. 
  */ 
-void debug(struct life_t life) {
+void debug(life_t life) {
     printf("Number of cols: %d\n", life.ncols);
     printf("Number of rows: %d\n", life.nrows);
     printf("Number of timesteps: %d\n", life.timesteps);
@@ -128,7 +134,7 @@ void debug(struct life_t life) {
  * 
  * @return true if GoL grid larger, false otherwise
  */
-bool is_big(struct life_t life) {
+bool is_big(life_t life) {
     return life.nrows * life.ncols > DEFAULT_MAX_SIZE;
 }
 
@@ -139,7 +145,7 @@ bool is_big(struct life_t life) {
 /**
  * Print the current GoL board to console.
  */
-void show(struct life_t life) {
+void show(life_t life) {
     int i, j;
 
     int ncols = life.ncols;
@@ -173,7 +179,7 @@ void show(struct life_t life) {
  * 
  * @param append    Whether to append to or to overwrite the output file.
  */
-void printbig(struct life_t life, bool append) {
+void printbig(life_t life, bool append) {
     int i, j;
     
     int ncols = life.ncols;
@@ -215,7 +221,7 @@ void printbig(struct life_t life, bool append) {
  * 
  * @param append    Whether to append to or to overwrite the output file, if in use.
  */
-void display(struct life_t life, bool append) {
+void display(life_t life, bool append) {
     if(is_big(life)) printbig(life, append);
     else show(life);
 }

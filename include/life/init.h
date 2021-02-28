@@ -1,12 +1,22 @@
 #ifndef GoL_LIFE_INIT_H
 #define GoL_LIFE_INIT_H
 
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <sys/types.h>
+
+// Custom includes
+#include "life.h"
+
+#include "../utils/func.h"
+
 /**
  * Update the GoL board's dimensions from file, if it exists and it has a valid format.
  * 
  * @return file_ptr    The pointer to the open input file, NULL otherwise. 
  */
-FILE* set_grid_dimens_from_file(struct life_t *life) {
+FILE* set_grid_dimens_from_file(life_t *life) {
     FILE *file_ptr;
 
     if (life->infile != NULL) {
@@ -28,7 +38,7 @@ FILE* set_grid_dimens_from_file(struct life_t *life) {
 /**
  * Allocate memory for the current and next GoL board.
  */
-void malloc_grid(struct life_t *life) {
+void malloc_grid(life_t *life) {
     int ncols = life->ncols;
     int nrows = life->nrows;
 
@@ -72,7 +82,7 @@ void malloc_grid(struct life_t *life) {
 /**
  * Initialize the GoL board with DEAD values.
  */
-void init_empty_grid(struct life_t *life) {
+void init_empty_grid(life_t *life) {
     int i;
 
     #ifdef GoL_CUDA
@@ -98,7 +108,7 @@ void init_empty_grid(struct life_t *life) {
  * @param file_ptr    The pointer to the open input file starting from the 2nd line. In fact the 1st line was previously read by the
  *                    set_grid_dimens_from_file() function in order to extract the desired dimensions of GoL's board.
  */
-void init_from_file(struct life_t *life, FILE *file_ptr) {
+void init_from_file(life_t *life, FILE *file_ptr) {
     int i, j;
 
     if (life->infile != NULL) {
@@ -152,7 +162,7 @@ void init_from_file(struct life_t *life, FILE *file_ptr) {
 /**
  * Initialize the GoL board with ALIVE values randomly.
  */
-void init_random(struct life_t *life) {
+void init_random(life_t *life) {
     int i;
 
     #ifdef GoL_CUDA

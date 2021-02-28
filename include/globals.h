@@ -1,11 +1,7 @@
 #ifndef GoL_GLOBALS_H
 #define GoL_GLOBALS_H 
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdbool.h>
-
-#include <unistd.h>
 
 const int DEFAULT_TIMESTEPS = 100;
 
@@ -51,7 +47,7 @@ const int DEFAULT_MAX_BLOCK_SIZE = 1024;
 
 #ifdef GoL_MPI
 // Message passing tags
-enum TAGS {
+enum Tags {
     TOP,    // Send/receive data to/from the top MPI neighbour process
     BOTTOM, // Send/receive data to/from the bottom MPI neighbour process
     PRINT   // Send/receive data to print it to file/console
@@ -59,7 +55,7 @@ enum TAGS {
 #endif
 
 // Grid cells' states := 1 byte each
-enum {
+enum States {
     DEAD  = false,
     ALIVE = true
 };

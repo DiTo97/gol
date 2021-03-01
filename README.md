@@ -58,4 +58,4 @@ Despite the repo containing both CPU and GPU code it has to be said that in orde
 
 ### Sample usage
 
-Run any binary with the `-h` flag to learn the expected usage.
+Run any binary with the `-h` flag to learn its expected usage.

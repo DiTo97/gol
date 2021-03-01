@@ -2,7 +2,12 @@
 #define GoL_FUNC_H
 
 #include <stdlib.h>
+
+#ifdef GoL_CUDA
 #include <sys/time.h>
+#else
+#include <time.h>
+#endif
 
 /**
  * Generate a random double from min to max.

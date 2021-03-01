@@ -3,9 +3,14 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#ifdef GoL_CUDA
+#include <sys/time.h>
+#else
+#include <time.h>
+#endif
 
 // Custom includes
 #include "../globals.h"
@@ -18,7 +23,7 @@
  * - cum_gene_time    The total time devolved to GoL evolution
  * - tot_prog_time    The total runtime of the program
  * 
- * @param nprocs      The # of running processes
+ * @param nprocs      The # of running processes | 1
  * 
  * @return log_ptr    The pointer to the tab-separated log file
  */

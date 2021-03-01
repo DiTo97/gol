@@ -75,7 +75,7 @@ double game(life_t *life) {
     size_t world_size = ncols*nrows * sizeof(bool);
     
     // Init the 1D data structures hosted on GPU
-	bool *gpu_grid, *gpu_next_grid;
+    bool *gpu_grid, *gpu_next_grid;
 
     // Copy the data from host to device in the 1st grid
     cudaMalloc((void **) &gpu_grid, world_size);
@@ -86,24 +86,24 @@ double game(life_t *life) {
     cudaMalloc((void **) &gpu_next_grid, world_size);
     cudaMemset(gpu_next_grid, DEAD, world_size);
 
-	display(*life, false);
+    display(*life, false);
 
     for(t = 0; t < life->timesteps; t++) { 
         // 1. Track the start time
         gettimeofday(&gstart, NULL);
         
-		// 2. Evolve the current generation with a CUDA kernel
-		evolve<<<grid_size, block_size>>>(
+        // 2. Evolve the current generation with a CUDA kernel
+        evolve<<<grid_size, block_size>>>(
                 gpu_grid, gpu_next_grid, nrows, ncols);
         
         // 3. Wait for all CUDA threads to finish
-		cudaDeviceSynchronize();
+        cudaDeviceSynchronize();
 
         // 4. Swap the memory pointers on GPU
         swap_grids(&gpu_grid, &gpu_next_grid);
 
         // 5. Track the end time
-		gettimeofday(&gend, NULL);
+        gettimeofday(&gend, NULL);
 
         cur_gene_time = elapsed_wtime(gstart, gend);
         tot_gene_time += cur_gene_time;
@@ -114,23 +114,23 @@ double game(life_t *life) {
             // If the GoL grid is large, print it (to file)
             // only at the end of the last generation
             if (t == life->timesteps - 1) {
-				cudaMemcpy(life->grid, gpu_grid, world_size,
+                cudaMemcpy(life->grid, gpu_grid, world_size,
                         cudaMemcpyDeviceToHost);
                 display(*life, true);
             }
         } else {
-			cudaMemcpy(life->grid, gpu_grid, world_size,
+            cudaMemcpy(life->grid, gpu_grid, world_size,
                     cudaMemcpyDeviceToHost);
             display(*life, true);
         }
-	}
+    }
 
     printf("\nEvolved GoL's grid for %d generations - ETA: %.5f ms\n",
             life->timesteps, tot_gene_time);
 
-	// Free the memory on GPU
-	cudaFree(gpu_grid);
-	cudaFree(gpu_next_grid);
+    // Free the memory on GPU
+    cudaFree(gpu_grid);
+    cudaFree(gpu_next_grid);
 
     return tot_gene_time;
 }
@@ -257,7 +257,7 @@ int main(int argc, char **argv) {
 
     FILE *input_ptr = set_grid_dimens_from_file(&life);
 
-	// 2. Launch the simulation
+    // 2. Launch the simulation
     double cum_gene_time = game(&life);
     cleanup(&life);
 

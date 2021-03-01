@@ -1,6 +1,6 @@
 # Game of Life
 
-Comparative analysis of possible parallel implementations of Conway's famous [Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) (GoL) using CUDA, OpenMP and MPI toolkits on INFN's [Ocapie cluster](https://web.ge.infn.it/calcolo/joomla/2-uncategorised/106-farm-hpc-ocapie) for HPC.
+Comparative analysis of possible parallel implementations of Conway's famous [Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) (GoL) using both GPU-based toolkits, CUDA, and CPU-based toolkits, OpenMP and MPI, on INFN's [Ocapie cluster](https://web.ge.infn.it/calcolo/joomla/2-uncategorised/106-farm-hpc-ocapie) for HPC.
 
 **Authors**: F. Minutoli, M. Ghirardelli, and D. Surpanu.
 
@@ -14,15 +14,15 @@ Comparative analysis of possible parallel implementations of Conway's famous [Ga
 
 ## Useful information
 
-### Full-matrix format
-
 ### Defaults
 
-- The borderline size to distinguish a small GoL's grid from a big one has been updated to $50$x$50$.
+- The borderline size to distinguish a small GoL's grid from a big one has been updated to *50*x*50*.
 
- ### Input file format
+ ### Display file format
 
-- Before reading the GoL matrix from an input file, replace the first character of the first row with the 'A' character to
+ Both the input and output file format comply with the full-matrix format (FM), that is, 
+
+- in case the (0, 0) cellBefore reading the GoL matrix from an input file,  replace the first character of the first row with the 'A' character to
   avoid the skipping behavior of getline. Do this if the first character is a blank space (a DEAD cell).
 
 ### Folder structure

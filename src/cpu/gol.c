@@ -1,219 +1,19 @@
-/*
- * Consway's Game of Life.
- *
- * Serial implementation in C inspired by
- * https://www.geeksforgeeks.org/conways-game-life-python-implementation/
- */
-
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <sys/time.h>
 
+// Custom includes
 #include "gol.h"
-#include "utils.h"
-
-/*********************
- * Display functions *
- *********************/
-
-/**
- * Print the current GoL board to console.
- */
-void show(struct life_t life) {
-    int x, y;
-
-    int ncols = life.num_cols;
-    int nrows = life.num_rows;
-
-    // \033[H: Move cursor to top-left corner;
-    // \033[J: Clear console.
-    printf("\033[H\033[J");
-
-    for (x = 0; x < nrows; x++) {
-        for (y = 0; y < ncols; y++)
-            printf(life.grid[x][y] == ALIVE ? "\033[07m  \033[m" : "  ");
-
-        printf("\033[E");
-    }
-
-    fflush(stdout);
-    usleep(160000);
-}
-
-/**
- * Print the current GoL chunk to console.
- */
-#ifdef GoL_MPI
-void show_chunk(struct chunk_t chunk) {
-    int x, y;
-
-    int ncols = chunk.num_cols;
-    int nrows = chunk.num_rows;
-
-    // \033[H: Move cursor to top-left corner;
-    // \033[J: Clear console.
-    printf("\033[H\033[J");
-
-    for (x = 1; x < nrows + 1; x++) {
-        for (y = 0; y < ncols; y++)
-            printf(chunk.chunk[x][y] == ALIVE ? "\033[07m  \033[m" : "  ");
-
-        printf("\033[E");
-    }
-}
-
-/**
- * Print the current GoL buffer to console.
- */
-void show_buffer(int ncols, int nrows, bool *buffer) {
-    int x, y;
-
-    for (x = 0; x < nrows; x++) {
-        for (y = 0; y < ncols; y++)
-            printf(*((buffer + x*ncols) + y) == ALIVE ? "\033[07m  \033[m" : "  ");
-
-        printf("\033[E");
-    }
-}
-
-/**
- * Print the current GoL chunk to file.
- */
-void write_chunk(struct chunk_t chunk, int tot_rows, char *out_file, bool append) {
-    char *mode = append ? "a" : "w";
-
-    int i, j;
-
-    int nrows = chunk.num_rows;
-    int ncols = chunk.num_cols;
-
-    FILE *out_ptr;
-
-    if ((out_ptr = fopen(out_file, mode)) == NULL) {
-        perror("[*] Failed to open the output file.");
-        // TODO here we don't have the communicator
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-
-    if (!append)
-        fprintf(out_ptr, "%d %d\n", tot_rows, ncols);
-        
-    for (i = 0; i < nrows; i++) {
-        for (j = 0; j < ncols; j++) {
-            if (chunk.chunk[i][j] == DEAD)
-                fprintf(out_ptr, "%c", ' ');
-            else
-                fprintf(out_ptr, "%c", 'X');
-        }
-        fprintf(out_ptr, "\n");
-    }
-
-    fflush(out_ptr);
-    fclose(out_ptr);
-}
-
-void write_buffer(bool *buffer, int nrows, int ncols, int buf_rows, int rank, int size, FILE* out_ptr) {
-    int i, j;
-
-    bool last = (rank == size - 1);
-    int abs_row = rank * nrows;
-
-    for (i = 0; i < buf_rows; i++) {
-        for (j = 0; j < ncols; j++) {
-            if (*((buffer + i*ncols) + j) == DEAD)
-                fprintf(out_ptr, "%c", ' ');
-            else
-                fprintf(out_ptr, "%c", 'X');
-        }
-        fprintf(out_ptr, "\n");
-    }
-
-    if (last)
-        // Separate different GoL board dumps.
-        fprintf(out_ptr, "****************************************************************************************************\n");
-}
-#endif
-
-/**
- * Print the current GoL board to file.
- * 
- * @param append    Whether to append to or to overwrite the output file.
- */
-void printbig(struct life_t life, bool append) {
-    int x, y;
-    
-    int ncols = life.num_cols;
-    int nrows = life.num_rows;
-
-    FILE *out_ptr;
-    
-    if(append) out_ptr = fopen(life.output_file, "a" );
-    else out_ptr = fopen(life.output_file, "w" );
-     
-    if (!append)
-        fprintf(out_ptr, "%d %d\n", nrows, ncols);
-
-    for (x = 0; x < nrows; x++) {
-        for (y = 0; y < ncols; y++) 
-            fprintf(out_ptr, "%c", life.grid[x][y] == ALIVE ? 'X' : ' ');
-            
-        fprintf(out_ptr, "\n");
-    }
-
-    fprintf(out_ptr, "****************************************************************************************************\n");
-
-    fflush(out_ptr);
-    fclose(out_ptr);
-}
-
-/**
- * Print the current GoL board to either console or file depending on whether its size is larger than DEFAULT_MAX_SIZE.
- */
-void display(struct life_t life, bool append) {
-    if(is_big(life)) printbig(life, append);
-    else show(life);
-}
-
-#ifdef GoL_DEBUG
-/**
- * Print to console the status of the current GoL board: the number of ALIVE and DEAD cells.
- */
-void get_grid_status(struct life_t life) {
-    int i, j;
-
-    int ncols = life.num_cols;
-    int nrows = life.num_rows;
-
-    int n_alive = 0;
-    int n_dead  = 0;
-
-    #pragma omp parallel for private(j) \
-                reduction(+:n_alive, n_dead)
-    for (i = 0; i < nrows; i++) 
-        for (j = 0; j < ncols; j++)
-            life.grid[i][j] == ALIVE ? n_alive++ : n_dead++;
-    
-    printf("Number of alive cells: %d\n",  n_alive);
-    printf("Number of dead cells: %d\n\n", n_dead);
-
-    fflush(stdout);
-    usleep(320000);
-}
-#endif
-
-/***********************
- * Evolution functions *
- ***********************/
 
 /**
  * Initialize all variables and structures required by GoL evolution.
  */
-void initialize(struct life_t *life) {
+void initialize(life_t *life) {
     // 1. Initialize the random seed
     srand(life->seed);
 
     // 2. Check if an input file was specified in the args
-    // and, in that case, update num_cols and num_rows.
+    // and, in that case, update ncols and nrows.
     //
     // Use defaults, if no file is present.
     FILE *input_ptr = set_grid_dimens_from_file(life);
@@ -231,134 +31,48 @@ void initialize(struct life_t *life) {
         init_random(life);
     }
 
-    // #ifdef GoL_DEBUG
-    // debug(*life);
-    // usleep(1000000);
-    // #endif
-}
-
-/**
- * Initialize all variables and structures required by GoL evolution.
- */
-#ifdef GoL_MPI
-void initialize_chunk(struct chunk_t *chunk, struct life_t life, FILE *input_ptr, int from, int to) {
-    srand(life.seed);
-
-    // 3. Allocate memory for the chunk
-    malloc_chunk(chunk);
-
-    // 4. Initialize the chunk with DEAD cells
-    init_empty_chunk(chunk);
-    
-    // 5. Initialize the chunk with ALIVE cells...
-    if (input_ptr != NULL) { // ...from file, if present...
-        init_chunk_from_file(chunk, life.num_rows, life.num_cols, input_ptr, from, to);
-    } else {  // ...or randomly, otherwise.
-        init_random_chunk(chunk, life, from, to);
-    }
-
     #ifdef GoL_DEBUG
-    // debug(*life);
+    debug(*life);
     usleep(1000000);
     #endif
 }
-#endif
-
-void swap_grids(bool ***old, bool ***new) {
-    bool **temp = *old;
-
-    *old = *new;
-    *new = temp;
-}
 
 /**
- * Perform one evolutionary step of the board, following GoL rules, in this order:
+ * Perform GoL evolution for a given amount of generations.
  * 
- *     1. A cell is born, if it has exactly 3 neighbours;
- *     2. A cell dies of loneliness, if it has less than 2 neighbours;
- *     3. A cell dies of overcrowding, if it has more than 3 neighbours;
- *     4. A cell survives to the next generation, if it does not die of loneliness or overcrowding.
+ * @return tot_gene_time    The total time devolved to GoL evolution
  */
-void evolve(struct life_t *life) {
-    int x, y, i, j, r, c;
-
-    int alive_neighbs; // Number of alive neighbours
-
-    int ncols = life->num_cols;
-    int nrows = life->num_rows;
- 
-    // 1. Let every cell in the grid evolve.
-    #pragma omp parallel for private(alive_neighbs, x, i, j, r, c)
-    for (y = 0; y < nrows; y++) 
-        for (x = 0; x < ncols; x++) {
-            alive_neighbs = 0;
-
-            // 1.a Check the 3x3 neighbourhood
-            for (i = y - 1; i <= y + 1; i++)
-                for (j = x - 1; j <= x + 1; j++) {
-                    // Compute the actual row/col coordinates in the GoL board.
-                    //
-                    // Remember that the board represents an hypothetically infinite world. In order to do that,
-                    // it has to be modelled as a circular matrix, with cells along outer borders considered adjacent to one another.
-                    // By applying the modulo operator, %, we account for this possibility. 
-                    c = (i + nrows) % nrows;
-                    r = (j + ncols) % ncols;
-
-                    if (!(i == y && j == x) // Skip the current cell (x, y)
-                            && life->grid[c][r] == ALIVE)
-                        alive_neighbs++;
-                }
-
-            // 1.b Apply GoL rules to determine the cell's state
-            if (alive_neighbs == 3
-                    || (alive_neighbs == 2 && life->grid[y][x] == ALIVE))
-                life->next_grid[y][x] = ALIVE;
-            else
-                life->next_grid[y][x] = DEAD;
-        }
-
-    // 2. Replace the old grid with the updated one.
-    swap_grids(&life->grid, &life->next_grid);
-    // #pragma omp parallel for private(x)
-    // for (y = 0; y < nrows; y++) 
-    //     for (x = 0; x < ncols; x++) 
-    //         life->grid[y][x] = life->next_grid[y][x];
-}
-
-/**
- * Perform GoL evolution for a given amount of generations and measure execution times.
- */
-double game(struct life_t *life) {
+double game(life_t *life) {
     int x, y, t;
 
-    struct timeval start, end;
+    struct timeval gstart, gend;
     
-    // initializing the whole matrix only if not running with MPI
+    // Initialize the whole GoL grid
     initialize(life);
 
-    int ncols = life->num_cols;
-    int nrows = life->num_rows;
+    int ncols = life->ncols;
+    int nrows = life->nrows;
 
-    double tot_time = 0.;
-    double cur_time = 0.;
+    double tot_gene_time = 0.;
+    double cur_gene_time = 0.;
 
     display(*life, false);
 
     for(t = 0; t < life->timesteps; t++) { 
         // 1. Track the start time
-        gettimeofday(&start, NULL);
+        gettimeofday(&gstart, NULL);
         
-        // 2. Let the current generation evolve
+        // 2. Evolve the current generation
         evolve(life);
         
         // 3. Track the end time
-        gettimeofday(&end, NULL);
+        gettimeofday(&gend, NULL);
 
-        cur_time = elapsed_wtime(start, end);
-        tot_time += cur_time;
+        cur_gene_time = elapsed_wtime(gstart, gend);
+        tot_gene_time += cur_gene_time;
 
         if (is_big(*life)) {
-            printf("Generation #%d took %.5f ms\n", t, cur_time);  
+            printf("Generation #%d took %.5f ms\n", t, cur_gene_time);  
 
             // If the GoL grid is large, print it (to file)
             // only at the end of the last generation
@@ -369,23 +83,74 @@ double game(struct life_t *life) {
             display(*life, true);
         }
 
-        // #ifdef GoL_DEBUG
-        // // get_grid_status(*life);
-        // #endif
+        #ifdef GoL_DEBUG
+        get_grid_status(*life);
+        #endif
     }
 
-    printf("\nTotal processing time of GoL evolution for %d generations: %.5f ms\n",
-        life->timesteps, tot_time);
+    printf("\nEvolved GoL's grid for %d generations - ETA: %.5f ms\n",
+        life->timesteps, tot_gene_time);
 
-    return tot_time;
+    return tot_gene_time;
 }
 
-void cleanup(struct life_t *life) {
-    int i;
-    int nrows = life->num_rows;
+/**
+ * Perform one evolutionary step of the board, following GoL rules, in this order:
+ *     1. A cell is born, if it has exactly 3 neighbours;
+ *     2. A cell dies of loneliness, if it has less than 2 neighbours;
+ *     3. A cell dies of overcrowding, if it has more than 3 neighbours;
+ *     4. A cell survives to the next generation, if it doesn't die of loneliness or overcrowding.
+ */
+void evolve(life_t *life) {
+    int x, y, i, j, r, c;
 
+    int alive_neighbs; // # of alive neighbours
+
+    int ncols = life->ncols;
+    int nrows = life->nrows;
+ 
+    // 1. Evolve every cell in the grid
+    #ifdef _OPENMP
+    #pragma omp parallel for private(alive_neighbs, y, i, j, r, c)
+    #endif
+    for (x = 0; x < nrows; x++) 
+        for (y = 0; y < ncols; y++) {
+            alive_neighbs = 0;
+
+            // 1.a Check the 3x3 neighbourhood
+            for (i = x - 1; i <= x + 1; i++)
+                for (j = y - 1; j <= y + 1; j++) {
+                    /* Compute the actual row/col coordinates in the GoL board. */
+                    
+                    // Remember that the board represents an hypothetically infinite world. In order to do that,
+                    // it has to be modelled as a circular matrix, with cells along outer borders considered adjacent to one another.
+                    // By applying the modulo operator, %, we account for this possibility. 
+                    c = (i + nrows) % nrows;
+                    r = (j + ncols) % ncols;
+
+                    if (!(i == x && j == y) // Skip the current cell (x, y)
+                            && life->grid[c][r] == ALIVE)
+                        alive_neighbs++;
+                }
+
+            // 1.b Apply GoL rules to determine the cell's next state
+            life->next_grid[x][y] = (alive_neighbs == 3
+                    || (alive_neighbs == 2
+                            && life->grid[x][y] == ALIVE)) \
+                    ? ALIVE : DEAD;
+        }
+
+    // 2. Replace the old grid with the updated one.
+    swap_grids(&life->grid, &life->next_grid);
+}
+
+void cleanup(life_t *life) {
+    int i;
+
+    #ifdef _OPENMP
     #pragma omp parallel for
-    for (i = 0; i < nrows; i++) {
+    #endif
+    for (i = 0; i < life->nrows; i++) {
         free(life->grid[i]);
         free(life->next_grid[i]);
     }
@@ -394,200 +159,16 @@ void cleanup(struct life_t *life) {
     free(life->next_grid);
 }
 
-#ifdef GoL_MPI
-void evolve_chunk(struct chunk_t *chunk){
-    int x, y, i, j, r, c;
-
-    int alive_neighbs; // Number of alive neighbours
-
-    int ncols = chunk->num_cols;
-    int nrows = chunk->num_rows;
- 
-    // 1. Let every cell in the grid evolve.
-    #pragma omp parallel for private(alive_neighbs, y, i, j, r, c)
-    for (x = 1; x < nrows + 1; x++) 
-        for (y = 0; y < ncols; y++) {
-            alive_neighbs = 0;
-
-            // 1.a Check the 3x3 neighbourhood
-            for (i = x - 1; i <= x + 1; i++)
-                for (j = y - 1; j <= y + 1; j++) {
-                    // Compute the actual row/col coordinates in the GoL board.
-                    //
-                    // Remember that the board represents an hypothetically infinite world. In order to do that,
-                    // it has to be modelled as a circular matrix, with cells along outer borders considered adjacent to one another.
-                    // By applying the modulo operator, %, we account for this possibility. 
-                    c = (j + ncols) % ncols;
-
-                    if (!(i == x && j == y) // Skip the current cell (x, y)
-                            && chunk->chunk[i][c] == ALIVE)
-                        alive_neighbs++;
-                }
-
-            // 1.b Apply GoL rules to determine the cell's state
-            if (alive_neighbs == 3
-                    || (alive_neighbs == 2 && chunk->chunk[x][y] == ALIVE))
-                chunk->next_chunk[x][y] = ALIVE;
-            else
-                chunk->next_chunk[x][y] = DEAD;
-        }
-
-    // 2. Replace the old grid with the updated one.
-    swap_grids(&chunk->chunk, &chunk->next_chunk);
-    // #pragma omp parallel for private(x)
-    // for (x = 1; x < nrows + 1; x++) 
-    //     for (y = 0; y < ncols; y++) 
-    //         chunk->chunk[x][y] = chunk->next_chunk[x][y];
-}
-
-void display_chunk(struct chunk_t *chunk, bool big, int tot_rows, char *out_file, bool append) {
-    if (chunk->rank == 0) {
-        int r;
-        MPI_Status status;
-
-        // 1. Print its chunk
-        if (!big)
-            show_chunk(*chunk);
-        else
-            write_chunk(*chunk, tot_rows, out_file, append);
-
-        int nrows = chunk->num_rows;
-        int ncols = chunk->num_cols;
-
-        bool buffer[nrows + chunk->displacement][ncols];
-
-        int j, k;
-
-        for (j = 0; j < nrows + chunk->displacement; j++)
-            for(k = 0; k < ncols; k++)
-                buffer[j][k] = DEAD;
-
-        FILE *out_ptr;
-
-        if (big) {
-            if ((out_ptr = fopen(out_file, "a")) == NULL) {
-                perror("[*] Failed to open the output file.");
-                MPI_Abort(MPI_COMM_WORLD, 1);
-            }
-        }
-
-        // 2. Collect and print other processes'
-        for (r = 1; r < chunk->size; r++) {
-            MPI_Recv(&buffer[0][0], (nrows + chunk->displacement) * ncols,
-                        MPI_C_BOOL, r, PRINT, MPI_COMM_WORLD, &status);
-
-            int rrows = (r == chunk->size - 1) \
-                        ? nrows + chunk->displacement \
-                        : nrows;
-
-            if (!big)
-                show_buffer(ncols, rrows, &buffer[0][0]);
-            else
-                write_buffer(&buffer[0][0], nrows, ncols, rrows, r, chunk->size, out_ptr);
-        }
-
-        // 3. Flush buffer to stdout/file
-        if (!big)
-            fflush(stdout);
-        else {
-            fflush(out_ptr);
-            fclose(out_ptr);
-        }
-    } else{
-        MPI_Send(&chunk->chunk[1][0], chunk->num_rows * chunk->num_cols,
-                    MPI_C_BOOL, 0, PRINT, MPI_COMM_WORLD);
-    }
-
-    usleep(160000);
-}
-
-double game_chunk(struct chunk_t *chunk, struct life_t life){
-    int i;
-    MPI_Status status;
-
-    int timesteps = life.timesteps;
-    bool big = is_big(life);
-    int tot_rows = life.num_rows;
-    char *out_file = life.output_file;
-
-    struct timeval gstart, gend;
-
-    double cur_gtime = 0.0;
-    double tot_gtime = 0.0;
-
-    display_chunk(chunk, big, tot_rows, out_file, false);
-
-    for (i = 0; i < timesteps; i++){
-        MPI_Barrier(MPI_COMM_WORLD);
-
-        if (chunk->rank == 0)
-            // Track the start time
-            gettimeofday(&gstart, NULL);
-
-        // Let the current chunk evolve
-        evolve_chunk(chunk);
-
-        int prev_rank = (chunk->rank - 1 + chunk->size) % chunk->size;
-        int next_rank = (chunk->rank + 1) % chunk->size;
-
-        // Share ghost rows
-        MPI_Sendrecv(&chunk->chunk[1][0], chunk->num_cols, MPI_C_BOOL, prev_rank, TOP,
-                     &chunk->chunk[chunk->num_rows + 1][0], chunk->num_cols, MPI_C_BOOL, next_rank, TOP,
-                     MPI_COMM_WORLD, &status);
-
-        MPI_Sendrecv(&chunk->chunk[chunk->num_rows][0], chunk->num_cols, MPI_C_BOOL, next_rank, BOTTOM,
-                     &chunk->chunk[0][0], chunk->num_cols, MPI_C_BOOL, prev_rank, BOTTOM,
-                     MPI_COMM_WORLD, &status);
-
-        MPI_Barrier(MPI_COMM_WORLD);
-
-        if (chunk->rank == 0) {
-            // Track the end time
-            gettimeofday(&gend, NULL);
-            cur_gtime = elapsed_wtime(gstart, gend);
-            tot_gtime += cur_gtime;
-        }
-
-        if(big) {
-            if (chunk->rank == 0) {
-                printf("Generation #%d took %.5f ms on process 0\n", i, cur_gtime);  
-            }
-
-            // If the GoL grid is large, print it (to file)
-            // only at the end of the last generation
-            if (i == timesteps - 1) {
-                display_chunk(chunk, big, tot_rows, out_file, true);
-            }
-        }else{
-            display_chunk(chunk, big, tot_rows, out_file, true);
-        }
-    }
-
-    return tot_gtime;
-}
-
-void debug_chunk(struct chunk_t chunk) {
-    printf("Number of cols: %d\n", chunk.num_cols);
-    printf("Number of rows: %d\n", chunk.num_rows);
-    printf("Rank: %d\n", chunk.rank);
-    printf("Communicator size: %d\n", chunk.size);
-    printf("Rows displacement: %d\n", chunk.displacement);
-
-    fflush(stdout);
-}
-#endif
-
 /************************************
  * ================================ *
  ************************************/
 
 int main(int argc, char **argv) {
-    struct life_t life;
     struct timeval start, end;
-
-    int size = 1;
-
     double cum_gene_time, elapsed_prog_wtime;
+
+    int nprocs = 1; // # of running processes
+    life_t life;    // GoL's main data structure
 
     gettimeofday(&start, NULL);
 
@@ -595,56 +176,61 @@ int main(int argc, char **argv) {
     parse_args(&life, argc, argv);
 
     #ifdef _OPENMP
-    omp_set_num_threads(life.num_threads);
+    omp_set_num_threads(life.nthreads);
     #endif
 
-    // reading the file if present and setting life dimensions
     FILE *input_ptr = set_grid_dimens_from_file(&life);
 
-    #ifdef GoL_MPI
-    int error, i, j, from, to, rows_per_processor;
+    #ifdef GoL_MPI /* GoL parallel with MPI */
+    int rows_per_process;
 
-    // the documentation says that only fortran returns an error???????
-    error = MPI_Init(&argc, &argv);
+    int from; // Boundaries of the slices of data
+    int to;   // each process will take care of
 
-    // declare the chunk structure
-    struct chunk_t chunk;
-    MPI_Status msg_status;
+    // 2. Initialize MPI environment
+    int status = MPI_Init(&argc, &argv);
 
-    // get the processes info
-    MPI_Comm_size(MPI_COMM_WORLD, &chunk.size);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    if (status != MPI_SUCCESS) {
+        fprintf(stderr, "[*] Failed to initialize MPI environment - errcode %d", status);
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    chunk_t chunk; // Per-process data structure
+
+    // 3. Get info from the MPI communicator
+    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &chunk.rank);
 
-    if(chunk.size != 1){
+    // Pass the size info to all processes
+    chunk.size = nprocs;
+
+    // 4. Launch GoL's evolution
+    if (chunk.size != 1) { // If there are at least 2 MPI processes
+                           // launch GoL's parallel evolution...
         MPI_Barrier(MPI_COMM_WORLD);
 
-        // calculate the number of rows that each process has to handle 
-        rows_per_processor = (int) life.num_rows/chunk.size;
-        chunk.displacement = life.num_rows % chunk.size;
+        // 4.a Calculate the number of rows
+        // that each process will handle 
+        rows_per_process = (int) life.nrows/chunk.size;
+        chunk.displacement = life.nrows % chunk.size;
 
-        // computing the begining row of each process
-        from = chunk.rank * rows_per_processor;
+        // 4.b Identify the starting row of each process
+        from = chunk.rank * rows_per_process;
 
-        // computing the last row of each process
-        // controlling if I'm the last process then I get all the remaining rows
-        if (chunk.rank == chunk.size - 1){
-            to = life.num_rows - 1;
-            chunk.num_rows = life.num_rows - from;
-        } else{
-            to = (chunk.rank + 1) * rows_per_processor - 1;
-            chunk.num_rows = rows_per_processor;
+        // 4.c Identify the last row of each process.
+        if (chunk.rank == chunk.size - 1) { // Last process will keep all remaining rows
+            to = life.nrows - 1;
+            chunk.nrows = life.nrows - from;
+        } else {
+            to = (chunk.rank + 1) * rows_per_process - 1;
+            chunk.nrows = rows_per_process;
         }
 
+        chunk.ncols = life.ncols; // Data is split on rows; hence all processes
+                                  // will have the same # of columns
 
-        // from = 0;
-        // to = 1;
-
-        // define the dimension of each chunk
-        chunk.num_cols = life.num_cols;
-
-        // initializing the chunk
-        initialize_chunk(&chunk, life, input_ptr, from, to);
+        initialize_chunk(&chunk, life,
+                input_ptr, from, to);
 
         double tot_gtime = game_chunk(&chunk, life);
 
@@ -652,55 +238,62 @@ int main(int argc, char **argv) {
             cum_gene_time = tot_gtime;
         }
 
-        // debug_chunk(chunk);
-
         MPI_Barrier(MPI_COMM_WORLD);
-        // printf("Processor %d: %d, %d\n", chunk.rank, from, to);
 
-        if(chunk.rank == 0){
+        cleanup_chunk(&chunk);
+
+        if(chunk.rank == 0) {
             gettimeofday(&end, NULL);
             elapsed_prog_wtime = elapsed_wtime(start, end);
-            printf("The execurion time is %.5f ms\n", elapsed_prog_wtime);
         }
-    }else{
-        // 2. Launch the simulation
+    } else { // ...else fall back to the sequential procedure
         cum_gene_time = game(&life);
-
-        // 3. Free the memory
         cleanup(&life);
+
         gettimeofday(&end, NULL);
         elapsed_prog_wtime = elapsed_wtime(start, end);
-        printf("The execurion time is %.5f ms\n", elapsed_prog_wtime);
     }
 
-    error = MPI_Finalize();
+    status = MPI_Finalize();
 
-    #else
-    // 2. Launch the simulation
+    if (status != MPI_SUCCESS) {
+        fprintf(stderr, "[*] Failed to finalize MPI environment - errcode %d", status);
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    #else /* GoL sequential */
     cum_gene_time = game(&life);
-
-    // 3. Free the memory
     cleanup(&life);
 
     gettimeofday(&end, NULL);
-
     elapsed_prog_wtime = elapsed_wtime(start, end);
-    printf("The total execurion time in sequential case is %.5f ms", elapsed_prog_wtime);
     #endif
 
+    // Log to file, if requested
     #ifdef GoL_LOG
 
     #ifdef GoL_MPI
-    if (chunk.rank == 0) {
+    if (chunk.rank == 0) { /* Enforce only the rank 0 process logs to file, if MPI was called.
+                            * Indeed the call to MPI_Finalize() doesn't guarantee
+                            * other processes won't execute the following code */
     #endif
-    FILE *log_ptr = init_log_file(life, size);
+    FILE *log_ptr = init_log_file(life, nprocs);
 
-    log_data(log_ptr, life.timesteps, cum_gene_time, elapsed_prog_wtime);
+    log_data(log_ptr, life.timesteps, cum_gene_time,
+            elapsed_prog_wtime);
 
     fflush(log_ptr);
     fclose(log_ptr);
     #ifdef GoL_MPI
     }
     #endif
+
+    #endif
+
+    #ifdef GoL_MPI
+    if (chunk.rank == 0) {
+    #endif
+    printf("\nFinalized the program - ETA: %.5f ms\n\n", elapsed_prog_wtime);
+    #ifdef GoL_MPI
+    }
     #endif
 }

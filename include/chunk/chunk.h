@@ -13,8 +13,8 @@
  * All the data required by a single communicating process via MPI.
  */ 
 typedef struct chunk {
-    int nrows;         // Number of columns in the slice
-    int ncols;         // Number of rows in the slice w/o ghost rows
+    int nrows;         // Number of rows in the slice w/o ghost rows
+    int ncols;         // Number of columns in the slice
     int rank;          // Rank of the calling MPI process in the communicator
     int size;          // Number of total MPI processes present in the communicator
     int displacement;  // Number of leftover rows assigned to the last process
@@ -161,7 +161,7 @@ void print_buffer(bool *buffer, int ncols, int nrows, int rank,
 
     for (i = 0; i < nrows; i++) {
         for (j = 0; j < ncols; j++)
-            printf("%c", *((buffer + i*ncols) + j) == ALIVE
+            fprintf(out_ptr, "%c", *((buffer + i*ncols) + j) == ALIVE
                     ? 'X' : ' ');
 
         fprintf(out_ptr, "\n");

@@ -7,10 +7,10 @@
 #include <unistd.h>
 
 #ifdef GoL_CUDA
-#include <sys/time.h>
-#else
-#include <time.h>
+#include <sys/time.h> // Enable struct timeval
 #endif
+
+#include <time.h>
 
 // Custom includes
 #include "../globals.h"
@@ -64,7 +64,7 @@ FILE* init_log_file(life_t life, int nprocs) {
 
     if (life.infile != NULL)
         sprintf(buffer, "%s/GoL_%s%s%snc%d_nr%d_nt%d_%lu.log",
-                logs_dir, _mpi, __omp, __cuda, 
+                logs_dir, __mpi, __omp, __cuda, 
                 life.ncols, life.nrows, life.timesteps,
                 (unsigned long) time(NULL));
     else

@@ -4,10 +4,10 @@
 #include <stdlib.h>
 
 #ifdef GoL_CUDA
-#include <sys/time.h>
-#else
-#include <time.h>
+#include <sys/time.h> // Enable struct timeval
 #endif
+
+#include <time.h>
 
 /**
  * Generate a random double from min to max.

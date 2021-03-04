@@ -1,6 +1,24 @@
 # Game of Life on GPU
 
-### CUDA
+## Usage
+
+1. From a local shell run:
+```console
+ssh -CX user_hpc<L>@130.251.61.97
+```
+
+2. Browse to desidered folder
+3. Copy the required files from front node to a worker node with:
+```console
+scp -r "${PWD}" node<X>:/home/user_hpc<L>/path/to/remote/destination
+```
+
+4. If no GoL_cuda binary is present within the `bin` folder run:
+```console
+make cuda
+```
+   
+## Implementation details
 
 1. Create another version of the parse_args function, which uses the following parameters:
 

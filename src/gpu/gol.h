@@ -16,11 +16,11 @@
 /**
  * Swap the memory pointers between two 1D arrays.
  */
-void swap_grids(bool **old, bool **new) {
+void swap_grids(bool **old, bool **_new) {
     bool *temp = *old;
 
-    *old = *new;
-    *new = temp;
+    *old  = *_new;
+    *_new = temp;
 }
 
 #endif

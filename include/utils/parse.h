@@ -150,7 +150,7 @@ int parse_nthreads(char *_nthreads) {
  * @return    The corresponding number of threads or DEFAULT_BLOCK_SIZE if the number is bigger than it.
  */ 
 int parse_block_size(char *_block_size) {
-    int block_size = strtol(_nthreads, (char **) NULL, 10);
+    int block_size = strtol(_block_size, (char **) NULL, 10);
 
     return block_size > DEFAULT_BLOCK_SIZE \
         ? DEFAULT_BLOCK_SIZE : block_size;

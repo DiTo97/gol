@@ -221,19 +221,27 @@ void evolve(bool *gpu_grid, bool *gpu_next_grid,
      * that this method works as intended.
      */
 
-    // 5. Count how many neighbours are ALIVE
-    int alive_neighbs = gpu_grid[x_left + y_up] // Top-left neighbour
-            + gpu_grid[x + y_up]                // Upper neighbour
-            + gpu_grid[x_right + y_up]          // Top-right neighbour
-            + gpu_grid[x_left + y]              // Left neighbour
-            + gpu_grid[x_right + y]             // Right neighbour
-            + gpu_grid[x_left + y_down]         // Bottom-left neighbour
-            + gpu_grid[x + y_down]              // Lower neighbour
-            + gpu_grid[x_right + y_down]        // Bottom-right neighbour
+    // 5. Count how many neighbours are ALIVE in this order:
+    //    Top-left neighbour
+    //    Upper neighbour
+    //    Top-right neighbour
+    //    Left neighbour
+    //    Right neighbour
+    //    Bottom-left neighbour
+    //    Lower neighbour
+    //    Bottom-right neighbour
+    int alive_neighbs = gpu_grid[x_left + y_up] \
+            + gpu_grid[x + y_up]                \
+            + gpu_grid[x_right + y_up]          \
+            + gpu_grid[x_left + y]              \
+            + gpu_grid[x_right + y]             \
+            + gpu_grid[x_left + y_down]         \
+            + gpu_grid[x + y_down]              \
+            + gpu_grid[x_right + y_down];         
 
     // 6. Update the next grid with the new state
     gpu_next_grid[x + y] = (alive_neighbs == 3
-            || (alive_neighbs == 2 && gpu_grid[x + y]))
+            || (alive_neighbs == 2 && gpu_grid[x + y])) \
             ? ALIVE : DEAD;
 }
 

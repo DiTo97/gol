@@ -6,9 +6,9 @@
   - (Milliseconds for one generation * 1000) / (world size)
 2. Total execution time 
 
-### Classes of experiments, for each GoL version (CUDA, MPI, OPENMP, HYBRID ETC ETC)
+### Classes of experiments, for each GoL version (CUDA, MPI, OpenMP, Hybrid)
 
-#### General settings
+**General settings**
 
 Max grid dimensions: 
   44000 x 44000 (half of the available space GPU global memory for CUDA)
@@ -37,7 +37,7 @@ Timesteps?
 
 Seed fixed!
 
-#### How to perform the experimental analysis (as explained in class) and recommended parameter values for Xeon Phi architecture
+**How to perform the experimental analysis (as explained in class) and recommended parameter values for Xeon Phi architecture**
 
 - Compute the sequential time, that is, we consider p=1 as a baseline for comparisons
 
@@ -46,7 +46,7 @@ Seed fixed!
 - Speedup / p = efficiency
 
 
-##### OpenMP
+**OpenMP**
 
 OpenMP threads (SMT):
   2, 4, 8, 16, 32, 64, 128, 256
@@ -69,7 +69,7 @@ Guidelines:
 
 The above observations apply for a single node (single process, multiple cores). 
 
-##### MPI
+**MPI**
 
 MPI processes:
     1 node:
@@ -94,23 +94,23 @@ Guidelines:
 
 - For further experiments, use powers of 2 in [1..12] for the number of nodes, powers of 2 in [1..1024] for the number of processes
 
-##### Hybrid architectures
+**Hybrid architectures**
 
 OpenMP + MPI hybrid:
     Extending the considerations made for OpenMP and MPI by enforcing the total number of available OpenMP threads per MPI process,
     # of OpenMP threads * # of MPI processes = 256 * # of nodes
 
-##### CUDA
+**CUDA**
 
 CUDA block size:
     32, 64, 128, 256, 512, 1024
 
     No lower than the warp size (32), because that would be highly inefficient
 
-##### Other observations to be taken into account
+**Other observations to be taken into account**
 
 - The improvements in speed are negligible for small grid sizes (may result in smaller speedup), depending on the number of threads: using more physical cores to solve the same problem results in performance reduction
 
-##### Core question
+**Core question**
 
 Have I achieved acceptable performance on my software for a suitable range of data and the resources I'm using?
